@@ -219,8 +219,7 @@ const UploadContracts: React.FC = () => {
   // Update the uploadGoogleCredentials function to handle service account properly
   const uploadGoogleCredentials = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files || files.length === 0) return
-    ;
+    if (!files || files.length === 0) return;
 
     setSuccess('');
     setError('');
