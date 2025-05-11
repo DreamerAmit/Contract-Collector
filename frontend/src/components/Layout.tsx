@@ -44,7 +44,7 @@ const Layout: React.FC = () => {
     <div>
       <Toolbar>
         <Typography variant="h6" noWrap component="div">
-          Contract Collector
+          Show Renewals
         </Typography>
       </Toolbar>
       <Divider />
@@ -90,7 +90,7 @@ const Layout: React.FC = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div">
-            {user?.email || 'Contract Collector'}
+            {user?.email || 'Show Renewals'}
           </Typography>
         </Toolbar>
       </AppBar>

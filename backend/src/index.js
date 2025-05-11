@@ -34,7 +34,7 @@ app.use('/api', apiRoutes);
 
 // Root route
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Contract Collector API' });
+  res.json({ message: 'Welcome to Show Renewals API' });
 });
 
 // Error handling middleware

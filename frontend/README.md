@@ -1,6 +1,6 @@
-# Contract Collector Frontend
+# Show Renewals Frontend
 
-This is the frontend React application for the Contract Collector. It provides a user interface for managing and reviewing contracts extracted from Google Workspace.
+This is the frontend React application for the Show Renewals. It provides a user interface for managing and reviewing contracts extracted from Google Workspace.
 
 ## Technologies Used
 

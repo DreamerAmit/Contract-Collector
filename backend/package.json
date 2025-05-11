@@ -1,7 +1,7 @@
 {
   "name": "contract-collector-backend",
   "version": "1.0.0",
-  "description": "Node.js backend for Contract Collector application",
+  "description": "Node.js backend for Show Renewals application",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

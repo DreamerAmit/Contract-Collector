@@ -1215,10 +1215,10 @@ const UploadContracts: React.FC = () => {
     <Container maxWidth="lg">
       <Paper elevation={3} sx={{ p: 3, my: 3 }}>
         <Typography variant="h4" sx={{ mb: 3 }}>
-          Contract Search & Upload
+          Show Renewals Search & Upload
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-          Search for contracts in Gmail and Google Drive, analyze them with AI, and add them to your contracts database.
+          Search for renewals in Gmail and Google Drive, analyze them with AI, and add them to your renewals database.
         </Typography>
 
         {error && (

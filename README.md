@@ -1,10 +1,10 @@
-# Contract Collector
+# Show Renewals
 
 A comprehensive solution for extracting, analyzing, and managing contracts from Google Workspace.
 
 ## Overview
 
-Contract Collector automates the process of finding, extracting, and managing contracts from your Google Workspace (Gmail, Drive) using Google Vault API. It also utilizes AI to analyze contracts for key information such as renewal dates and contract values.
+Show Renewals automates the process of finding, extracting, and managing contracts from your Google Workspace (Gmail, Drive) using Google Vault API. It also utilizes AI to analyze contracts for key information such as renewal dates and contract values.
 
 ## Features
 

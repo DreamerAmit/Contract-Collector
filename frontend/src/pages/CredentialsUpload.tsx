@@ -107,7 +107,7 @@ const CredentialsUpload: React.FC = () => {
           Instructions
         </Typography>
         <Typography paragraph>
-          To use the Contract Collector, you need to provide credentials for your Google Workspace account. 
+          To use the Show Renewals, you need to provide credentials for your Google Workspace account. 
           This will allow the application to search for contracts in your Gmail and Drive using Google Vault API.
         </Typography>
         <Typography paragraph>

@@ -1,6 +1,6 @@
-# Contract Collector Backend
+# Show Renewals Backend
 
-This is the Node.js backend for the Contract Collector application.
+This is the Node.js backend for the Show Renewals application.
 
 ## Technology Stack
 
@@ -165,7 +165,7 @@ npm start
 
 ### Using the Application
 
-1. Log in to the Contract Collector application
+1. Log in to the Show Renewals application
 2. Go to the "Upload Contracts" page
 3. Enter the Google Workspace email address of the account you want to access
 4. Upload the service account JSON key file
