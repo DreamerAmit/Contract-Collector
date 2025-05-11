@@ -1,8 +1,41 @@
 const { OpenAI } = require('openai');
+const dotenv = require('dotenv');
+const path = require('path');
+const fs = require('fs');
 
-// Initialize OpenAI client
+// Load environment variables
+dotenv.config();
+
+// Function to get API key
+function getApiKey() {
+  // First try environment variable
+  if (process.env.OPENAI_API_KEY) {
+    return process.env.OPENAI_API_KEY;
+  }
+  
+  // Then try to read from .env file directly
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      const match = envContent.match(/OPENAI_API_KEY=([^\r\n]+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+  } catch (error) {
+    console.error('Error reading .env file:', error);
+  }
+  
+  // Hardcoded key as last resort (replace with your actual key)
+  return 'sk-your-actual-api-key-here';
+}
+
+const apiKey = getApiKey();
+console.log('OpenAI API Key available:', !!apiKey);
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: apiKey
 });
 
 /**
@@ -113,6 +146,8 @@ async function checkOpenAIConfig() {
     return false;
   }
 }
+
+module.exports = openai;
 
 module.exports = {
   analyzeDocument,
