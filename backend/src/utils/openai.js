@@ -151,5 +151,6 @@ module.exports = openai;
 
 module.exports = {
   analyzeDocument,
-  checkOpenAIConfig
+  checkOpenAIConfig,
+  openai
 }; 

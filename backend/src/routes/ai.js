@@ -4,10 +4,8 @@ const { authenticate } = require('../middleware/auth');
 const { OpenAI } = require('openai');
 const { checkOpenAIConfig, analyzeDocument } = require('../utils/openai');
 
-// Initialize OpenAI API
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Get the openai instance from the utils instead of creating a new one
+const { openai } = require('../utils/openai');
 
 // Analyze contract text
 router.post('/analyze-contract', authenticate, async (req, res) => {
