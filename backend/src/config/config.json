@@ -15,9 +15,9 @@
   },
   "production": {
     "username": "postgres",
-    "password": "password",
-    "database": "contract_collector_production",
-    "host": "127.0.0.1",
+    "password": "rUtU@2023m",
+    "database": "contract_collector",
+    "host": "167.99.220.255",
     "dialect": "postgres",
     "dialectOptions": {
       "ssl": {
@@ -26,4 +26,4 @@
       }
     }
   }
-} 
+}
