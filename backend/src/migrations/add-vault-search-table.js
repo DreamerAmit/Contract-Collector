@@ -19,7 +19,7 @@ module.exports = {
       },
       matterId: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
         field: 'matter_id'
       },
       description: {
