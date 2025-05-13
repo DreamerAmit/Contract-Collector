@@ -222,15 +222,16 @@ router.post('/batch', authenticate, async (req, res) => {
         // Only use the essential fields we know exist in the database
         const query = `
           INSERT INTO contracts 
-          (name, contractValue, renewalDate, userId, createdAt, updatedAt) 
+          (name, contenttype, contractValue, renewalDate, userId, createdAt, updatedAt) 
           VALUES 
-          (:name, :contractValue, :renewalDate, :userId, NOW(), NOW())
-          RETURNING id, name, contractValue, renewalDate, userId, createdAt, updatedAt
+          (:name, :contentType, :contractValue, :renewalDate, :userId, NOW(), NOW())
+          RETURNING id, name, contenttype, contractValue, renewalDate, userId, createdAt, updatedAt
         `;
         
         const result = await sequelize.query(query, {
           replacements: {
             name: contract.name || 'Unnamed Contract',
+            contentType: contract.contentType || 'application/pdf', // Default content type
             contractValue: contract.amount ? parseFloat(contract.amount) : null,
             renewalDate: contract.renewalDate ? new Date(contract.renewalDate) : null,
             userId: req.user.id
