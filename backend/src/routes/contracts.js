@@ -89,15 +89,37 @@ router.get('/', authenticate, async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const offset = page * limit;
     
-    const contracts = await Contract.findAll({
-      where: { userId: req.user.id },
-      order: [['renewalDate', 'DESC']],
-      offset,
-      limit
+    // Use direct SQL query to avoid Sequelize model validation issues
+    const query = `
+      SELECT id, name, contractValue, renewalDate, userId, createdAt, updatedAt 
+      FROM contracts 
+      WHERE userId = :userId
+      ORDER BY renewalDate DESC
+      LIMIT :limit OFFSET :offset
+    `;
+    
+    const contracts = await sequelize.query(query, {
+      replacements: {
+        userId: req.user.id,
+        limit: limit,
+        offset: offset
+      },
+      type: QueryTypes.SELECT
     });
     
-    res.json(contracts);
+    console.log('Contracts found:', contracts.length);
+    
+    // Transform the data to match what the frontend expects
+    const formattedContracts = contracts.map(contract => ({
+      id: contract.id,
+      name: contract.name,
+      contractValue: contract.contractvalue || contract.contractValue,
+      renewalDate: contract.renewaldate || contract.renewalDate
+    }));
+    
+    res.json(formattedContracts);
   } catch (error) {
+    console.error('Error fetching contracts:', error);
     res.status(500).json({
       error: { message: 'Failed to get contracts', details: error.message }
     });
