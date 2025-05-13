@@ -201,4 +201,48 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Batch upload contracts
+router.post('/batch', authenticate, async (req, res) => {
+  try {
+    const { contracts } = req.body;
+    
+    if (!contracts || !Array.isArray(contracts) || contracts.length === 0) {
+      return res.status(400).json({
+        error: { message: 'Invalid or empty contracts array' }
+      });
+    }
+
+    // Process contracts to ensure they have all required fields in the correct format
+    const processedContracts = contracts.map(contract => {
+      // Map frontend contract object to database model
+      return {
+        name: contract.name || 'Unnamed Contract',
+        filePath: contract.path || '',
+        contentType: contract.contentType || 'application/pdf',
+        sourceEmail: contract.sourceEmail || null,
+        sourceDriveId: contract.sourceDriveId || null,
+        extractedText: contract.extractedText || '',
+        // Convert amount/contractValue to float
+        contractValue: contract.amount ? parseFloat(contract.amount) : null,
+        // Ensure renewalDate is properly formatted
+        renewalDate: contract.renewalDate ? new Date(contract.renewalDate) : null,
+        userId: req.user.id
+      };
+    });
+    
+    // Create multiple contracts
+    const createdContracts = await Contract.bulkCreate(processedContracts);
+    
+    res.status(201).json({
+      message: `Successfully created ${createdContracts.length} contracts`,
+      contracts: createdContracts
+    });
+  } catch (error) {
+    console.error('Error in batch contract upload:', error);
+    res.status(500).json({
+      error: { message: 'Failed to create contracts in batch', details: error.message }
+    });
+  }
+});
+
 module.exports = router; 
