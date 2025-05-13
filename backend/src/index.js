@@ -20,7 +20,7 @@ app.use(helmet()); // Security headers
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // Request logging
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://showrenewals.com'],
+  origin: ['http://localhost:3000', 'http://showrenewals.com', 'https://showrenewals.com', 'https://www.showrenewals.com'],
   credentials: true
 }));
 app.use(express.json());
