@@ -15,11 +15,11 @@ Contract.init({
   },
   filePath: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
   },
   contentType: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
   },
   sourceEmail: {
     type: DataTypes.STRING,

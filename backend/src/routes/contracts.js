@@ -6,6 +6,8 @@ const fs = require('fs');
 const { authenticate } = require('../middleware/auth');
 const { Contract } = require('../models');
 const { extractTextFromDocument } = require('../utils/documentProcessor');
+const { QueryTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -212,26 +214,33 @@ router.post('/batch', authenticate, async (req, res) => {
       });
     }
 
-    // Using raw SQL query to insert only essential fields that exist in the database
+    // Use direct SQL instead of Sequelize model to bypass model validation
     const createdContracts = [];
     
     for (const contract of contracts) {
       try {
-        // Build a simpler contract object with only essential fields
-        const contractData = {
-          name: contract.name || 'Unnamed Contract',
-          contractValue: contract.amount ? parseFloat(contract.amount) : null,
-          renewalDate: contract.renewalDate ? new Date(contract.renewalDate) : null,
-          userId: req.user.id,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
+        // Only use the essential fields we know exist in the database
+        const query = `
+          INSERT INTO contracts 
+          (name, contractValue, renewalDate, userId, createdAt, updatedAt) 
+          VALUES 
+          (:name, :contractValue, :renewalDate, :userId, NOW(), NOW())
+          RETURNING id, name, contractValue, renewalDate, userId, createdAt, updatedAt
+        `;
         
-        // Insert contract using Sequelize's built-in create method
-        // This will only use the fields that exist in the database
-        const newContract = await Contract.create(contractData);
-        createdContracts.push(newContract);
+        const result = await sequelize.query(query, {
+          replacements: {
+            name: contract.name || 'Unnamed Contract',
+            contractValue: contract.amount ? parseFloat(contract.amount) : null,
+            renewalDate: contract.renewalDate ? new Date(contract.renewalDate) : null,
+            userId: req.user.id
+          },
+          type: QueryTypes.INSERT
+        });
         
+        if (result && result[0] && result[0][0]) {
+          createdContracts.push(result[0][0]);
+        }
       } catch (contractError) {
         console.error('Error creating individual contract:', contractError);
         // Continue with other contracts even if one fails
