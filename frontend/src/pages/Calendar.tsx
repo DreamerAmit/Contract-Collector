@@ -10,7 +10,7 @@ import axios from 'axios';
 interface Contract {
   id: number;
   name: string;
-  amount: number;
+  contractValue: number;
   renewalDate: string;
 }
 
@@ -25,6 +25,7 @@ const Calendar: React.FC = () => {
       try {
         setLoading(true);
         const response = await axios.get('/api/contracts');
+        console.log('Contracts retrieved from API:', response.data);
         setContracts(response.data);
       } catch (error) {
         console.error('Error fetching contracts:', error);
@@ -130,7 +131,7 @@ const Calendar: React.FC = () => {
                         secondary={
                           <React.Fragment>
                             <Typography component="span" variant="body2" color="text.primary">
-                              ${contract.amount.toLocaleString()}
+                              ${contract.contractValue ? contract.contractValue.toLocaleString() : '0'}
                             </Typography>
                             <br />
                             Renewal: {format(new Date(contract.renewalDate), 'MMM d, yyyy')}
