@@ -12,6 +12,7 @@ const os = require('os');
  */
 async function createGmailClient(credentialsData, userEmail) {
   let authClient;
+  let actualEmail = userEmail; // Default to provided email
   
   // Check if this is a service account or OAuth credentials
   if (credentialsData.type === 'service_account') {
@@ -49,6 +50,22 @@ async function createGmailClient(credentialsData, userEmail) {
       access_token: credentialsData.access_token,
       expiry_date: credentialsData.expiry_date
     });
+    
+    // Try to get the actual email from token info for OAuth
+    try {
+      // This will refresh the token if needed
+      const tokenInfo = await authClient.getTokenInfo(
+        credentialsData.access_token || await authClient.getAccessToken()
+      );
+      
+      if (tokenInfo.email) {
+        console.log('Retrieved email from OAuth token:', tokenInfo.email);
+        actualEmail = tokenInfo.email;
+      }
+    } catch (err) {
+      console.error('Error getting token info:', err);
+      // Continue with authorization even if we can't get the email
+    }
   } else {
     throw new Error('Invalid credentials: Must provide either service account or OAuth credentials');
   }
@@ -57,10 +74,27 @@ async function createGmailClient(credentialsData, userEmail) {
   await authClient.authorize();
   
   // Create API clients
+  const gmailClient = google.gmail({ version: 'v1', auth: authClient });
+  const driveClient = google.drive({ version: 'v3', auth: authClient });
+  
+  // For OAuth, if we couldn't get the email from token info, try to get it from profile
+  if (!actualEmail && credentialsData.refresh_token) {
+    try {
+      const profile = await gmailClient.users.getProfile({ userId: 'me' });
+      if (profile.data.emailAddress) {
+        console.log('Retrieved email from Gmail profile:', profile.data.emailAddress);
+        actualEmail = profile.data.emailAddress;
+      }
+    } catch (err) {
+      console.error('Error getting Gmail profile:', err);
+    }
+  }
+  
   return {
-    gmailClient: google.gmail({ version: 'v1', auth: authClient }),
-    driveClient: google.drive({ version: 'v3', auth: authClient }),
-    auth: authClient
+    gmailClient,
+    driveClient,
+    auth: authClient,
+    email: actualEmail // Return the email address that is actually used
   };
 }
 

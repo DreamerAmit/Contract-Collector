@@ -119,7 +119,15 @@ const UploadContracts: React.FC = () => {
         setEmailLoading(true);
         
         // Try multiple endpoints to get the email
-        // 1. Try Google status endpoint which has workspaceEmail for service accounts
+        // 1. First try auth-status endpoint which should now have the OAuth email
+        const authStatusResponse = await axios.get('/api/google/auth-status');
+        if (authStatusResponse.data && authStatusResponse.data.email) {
+          console.log('Found email in auth-status endpoint:', authStatusResponse.data.email);
+          setGoogleEmail(authStatusResponse.data.email);
+          return;
+        }
+        
+        // 2. Try Google status endpoint which has workspaceEmail for service accounts
         const statusResponse = await axios.get('/api/google/status');
         if (statusResponse.data && statusResponse.data.workspaceEmail) {
           console.log('Found email in status endpoint:', statusResponse.data.workspaceEmail);
@@ -127,7 +135,20 @@ const UploadContracts: React.FC = () => {
           return;
         }
         
-        // 2. Try test-connection which might have more info
+        // 3. Try getting the profile directly from Gmail API if available
+        try {
+          const profileResponse = await axios.get('/api/google/gmail/profile');
+          if (profileResponse.data && profileResponse.data.emailAddress) {
+            console.log('Found email in Gmail profile:', profileResponse.data.emailAddress);
+            setGoogleEmail(profileResponse.data.emailAddress);
+            return;
+          }
+        } catch (profileErr) {
+          console.error('Error fetching Gmail profile:', profileErr);
+          // Continue to next method if this fails
+        }
+        
+        // 4. Try test-connection which might have more info
         try {
           const testResponse = await axios.get('/api/google/test-connection');
           if (testResponse.data) {
@@ -148,20 +169,7 @@ const UploadContracts: React.FC = () => {
           // Continue to next method if this fails
         }
         
-        // 3. Try getting the profile directly from Gmail API if available
-        try {
-          const profileResponse = await axios.get('/api/google/gmail/profile');
-          if (profileResponse.data && profileResponse.data.emailAddress) {
-            console.log('Found email in Gmail profile:', profileResponse.data.emailAddress);
-            setGoogleEmail(profileResponse.data.emailAddress);
-            return;
-          }
-        } catch (profileErr) {
-          console.error('Error fetching Gmail profile:', profileErr);
-          // Continue to next method if this fails
-        }
-        
-        // 4. Try user profile endpoint which might have the email
+        // 5. Try user profile endpoint which might have the email
         try {
           const profileResponse = await axios.get('/api/auth/me');
           if (profileResponse.data && profileResponse.data.googleWorkspaceEmail) {
@@ -234,6 +242,38 @@ const UploadContracts: React.FC = () => {
       };
     }
   }, [activeStep]);
+
+  // Add message listener for OAuth window completion
+  useEffect(() => {
+    // Listen for messages from the OAuth popup window
+    const handleAuthMessage = async (event: MessageEvent) => {
+      if (event.data === 'google-auth-complete') {
+        console.log('Received google-auth-complete message from popup');
+        // Wait a moment for backend to process the OAuth callback
+        setTimeout(async () => {
+          try {
+            const statusRes = await axios.get('/api/google/auth-status');
+            if (statusRes.data.connected) {
+              console.log('Google connected via popup message');
+              setGoogleConnected(true);
+              setJustConnected(true);
+              setSuccess('Google account connected successfully!');
+              
+              // Fetch email after connection
+              await fetchGoogleEmail();
+            }
+          } catch (err) {
+            console.error('Error checking auth status after popup message:', err);
+          }
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+    };
+  }, []);
 
   // Fetch email immediately when googleConnected becomes true
   useEffect(() => {
@@ -860,6 +900,27 @@ const UploadContracts: React.FC = () => {
     setActiveStep(prevStep => prevStep - 1);
   };
 
+  // Add a function to disconnect Google account
+  const disconnectGoogle = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await axios.post('/api/google/disconnect');
+      setGoogleConnected(false);
+      setGoogleEmail('');
+      setSuccess(response.data.message || 'Google account disconnected successfully');
+      
+      // Reset states
+      setJustConnected(false);
+      
+    } catch (error) {
+      console.error('Error disconnecting Google account:', error);
+      setError('Failed to disconnect Google account');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Render step content
   const getStepContent = (stepIndex: number): React.ReactNode => {
     switch (stepIndex) {
@@ -903,6 +964,18 @@ const UploadContracts: React.FC = () => {
                       </Button>
                     </Box>
                   )}
+                  <Box sx={{ mt: 1 }}>
+                    <Button 
+                      size="small" 
+                      variant="outlined" 
+                      color="error" 
+                      onClick={disconnectGoogle}
+                      disabled={loading}
+                      startIcon={<DeleteIcon fontSize="small" />}
+                    >
+                      Disconnect
+                    </Button>
+                  </Box>
                 </Typography>
               </Alert>
             ) : justConnected && success ? (
@@ -933,6 +1006,18 @@ const UploadContracts: React.FC = () => {
                       </Button>
                     </Box>
                   )}
+                  <Box sx={{ mt: 1 }}>
+                    <Button 
+                      size="small" 
+                      variant="outlined" 
+                      color="error" 
+                      onClick={disconnectGoogle}
+                      disabled={loading}
+                      startIcon={<DeleteIcon fontSize="small" />}
+                    >
+                      Disconnect
+                    </Button>
+                  </Box>
                 </Typography>
               </Alert>
             ) : null}

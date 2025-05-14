@@ -112,35 +112,38 @@ router.get('/oauth-callback', async (req, res) => {
       return res.status(404).send('<h1>Authentication Failed</h1><p>User not found. Please try again.</p>');
     }
     
+    // Get user's email from token info if possible
+    let userEmail = null;
+    try {
+      oauth2Client.setCredentials(tokens);
+      const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
+      userEmail = tokenInfo.email;
+      console.log('Retrieved email from token info:', userEmail);
+    } catch (e) {
+      console.error('Error getting token info:', e);
+    }
+    
     // Store tokens in the database
     user.googleRefreshToken = JSON.stringify(tokens);
-    // We don't need workspace email since we're using OAuth
-    user.googleWorkspaceEmail = null;
+    // Set the actual Gmail address for OAuth login
+    user.googleWorkspaceEmail = userEmail;
     await user.save();
     
-    // Return success HTML that will close the popup
+    // Render success page
     res.send(`
-      <html>
-        <head>
-          <title>Google Authentication Successful</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
-            .success { color: #4CAF50; }
-          </style>
-        </head>
-        <body>
-          <h1 class="success">Authentication Successful!</h1>
-          <p>You can close this window and return to the application.</p>
-          <script>
-            // Close the window after 2 seconds
-            setTimeout(() => { window.close(); }, 2000);
-          </script>
-        </body>
-      </html>
+      <h1>Google Authentication Successful</h1>
+      <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
+      <p>You can now close this window and return to the application.</p>
+      <script>
+        // Notify parent window that auth is complete
+        window.opener && window.opener.postMessage('google-auth-complete', '*');
+        // Close window after 3 seconds
+        setTimeout(() => window.close(), 3000);
+      </script>
     `);
   } catch (error) {
-    console.error('Error handling OAuth callback:', error);
-    res.status(500).send(`<h1>Authentication Error</h1><p>Error: ${error.message}</p><p>Please try again.</p>`);
+    console.error('OAuth callback error:', error);
+    res.status(500).send(`<h1>Authentication Error</h1><p>${error.message}</p>`);
   }
 });
 
@@ -153,7 +156,7 @@ router.get('/auth-status', authenticate, async (req, res) => {
     
     res.json({
       connected,
-      email: null // We don't expose email here for privacy
+      email: user.googleWorkspaceEmail // Return the stored email instead of null
     });
   } catch (error) {
     console.error('Error checking Google auth status:', error);
@@ -402,9 +405,12 @@ router.get('/status', authenticate, async (req, res) => {
     const connected = Boolean(user.googleRefreshToken) && 
                       (user.googleRefreshToken.includes('refresh_token') || Boolean(user.googleWorkspaceEmail));
     
+    // Include any email information we have
+    const email = user.googleWorkspaceEmail;
+    
     res.json({
       connected,
-      workspaceEmail: user.googleWorkspaceEmail || null
+      workspaceEmail: email
     });
   } catch (error) {
     console.error('Error checking Google status:', error);
@@ -911,6 +917,77 @@ router.get('/test-connection', authenticate, async (req, res) => {
         details: error.message,
         code: 'UNKNOWN_ERROR'
       }
+    });
+  }
+});
+
+// Get Gmail profile
+router.get('/gmail/profile', authenticate, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    
+    if (!user.googleRefreshToken) {
+      return res.status(400).json({
+        error: { message: 'Google credentials not found' }
+      });
+    }
+
+    // Get an authenticated Gmail client
+    let clients;
+    try {
+      clients = await createGmailClient(
+        JSON.parse(user.googleRefreshToken),
+        user.googleWorkspaceEmail
+      );
+    } catch (err) {
+      return res.status(400).json({
+        error: { message: 'Failed to create Gmail client', details: err.message }
+      });
+    }
+
+    // Get user profile from Gmail
+    const profile = await clients.gmailClient.users.getProfile({
+      userId: 'me'
+    });
+
+    // If the email from Gmail API is different from what we have stored, update it
+    const emailFromGmail = profile.data.emailAddress;
+    if (emailFromGmail && emailFromGmail !== user.googleWorkspaceEmail) {
+      console.log(`Updating user's email from ${user.googleWorkspaceEmail} to ${emailFromGmail} based on Gmail API response`);
+      user.googleWorkspaceEmail = emailFromGmail;
+      await user.save();
+    }
+
+    // Return profile data with email address
+    res.json({
+      emailAddress: profile.data.emailAddress,
+      messagesTotal: profile.data.messagesTotal,
+      threadsTotal: profile.data.threadsTotal,
+      historyId: profile.data.historyId
+    });
+  } catch (error) {
+    console.error('Error getting Gmail profile:', error);
+    res.status(500).json({
+      error: { message: 'Failed to get Gmail profile', details: error.message }
+    });
+  }
+});
+
+// Disconnect Google account
+router.post('/disconnect', authenticate, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    
+    // Clear Google credentials
+    user.googleRefreshToken = null;
+    user.googleWorkspaceEmail = null;
+    await user.save();
+    
+    res.json({ message: 'Google account disconnected successfully' });
+  } catch (error) {
+    console.error('Error disconnecting Google account:', error);
+    res.status(500).json({
+      error: { message: 'Failed to disconnect Google account', details: error.message }
     });
   }
 });
