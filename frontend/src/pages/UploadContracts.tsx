@@ -101,6 +101,9 @@ const UploadContracts: React.FC = () => {
   // Track if connection was just established
   const [justConnected, setJustConnected] = useState(false);
 
+  // Add userEmail state to store the connected user's email
+  const [userEmail, setUserEmail] = useState<string>('');
+
   const steps = ['Connect Google Workspace', 'Set Search Criteria', 'Wait for Results', 'Select Contracts', 'Review & Upload'];
 
   // Check if Google credentials are available
@@ -108,8 +111,32 @@ const UploadContracts: React.FC = () => {
     const checkGoogleCredentials = async () => {
       try {
         const response = await axios.get('/api/google/status');
-        setGoogleConnected(response.data.connected);
-        // Don't set success here, only after explicit connect
+        console.log('Google credentials status:', response.data);
+        if (response.data.connected) {
+          setGoogleConnected(true);
+          
+          // If email is available in the status response, save it
+          if (response.data.email) {
+            setUserEmail(response.data.email);
+          } else {
+            // Try to fetch user email separately
+            try {
+              const userInfoRes = await axios.get('/api/google/user-info');
+              if (userInfoRes.data && userInfoRes.data.email) {
+                setUserEmail(userInfoRes.data.email);
+              }
+            } catch (userInfoErr) {
+              console.error('Error fetching user info:', userInfoErr);
+            }
+          }
+          
+          // If we're on step 0 and we detect we're connected, show success message
+          if (activeStep === 0) {
+            setSuccess(userEmail ? `Google account is connected (${userEmail})` : 'Google account is connected');
+          }
+        } else {
+          setGoogleConnected(false);
+        }
       } catch (error) {
         console.error('Error checking Google credentials:', error);
         setGoogleConnected(false);
@@ -117,7 +144,19 @@ const UploadContracts: React.FC = () => {
     };
 
     checkGoogleCredentials();
-  }, []);
+    
+    // Also check credentials status when component mounts for step 0
+    if (activeStep === 0) {
+      const intervalId = setInterval(checkGoogleCredentials, 5000);
+      // Clean up interval after 30 seconds to avoid infinite polling
+      const timeoutId = setTimeout(() => clearInterval(intervalId), 30000);
+      
+      return () => {
+        clearInterval(intervalId);
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [activeStep, userEmail]);
   
   // Clean up polling interval on unmount or step change
   useEffect(() => {
@@ -192,8 +231,29 @@ const UploadContracts: React.FC = () => {
           if (statusRes.data.connected) {
             clearInterval(checkAuthInterval);
             setGoogleConnected(true);
-            setSuccess('Google account connected successfully!');
+            
+            // Get user email if available
+            if (statusRes.data.email) {
+              setUserEmail(statusRes.data.email);
+              setSuccess(`Google account connected successfully! (${statusRes.data.email})`);
+            } else {
+              // Fetch user information separately if email is not in the status response
+              try {
+                const userInfoRes = await axios.get('/api/google/user-info');
+                if (userInfoRes.data && userInfoRes.data.email) {
+                  setUserEmail(userInfoRes.data.email);
+                  setSuccess(`Google account connected successfully! (${userInfoRes.data.email})`);
+                } else {
+                  setSuccess('Google account connected successfully!');
+                }
+              } catch (userInfoErr) {
+                console.error('Error fetching user info:', userInfoErr);
+                setSuccess('Google account connected successfully!');
+              }
+            }
+            
             setJustConnected(true);
+            console.log('Google OAuth connected successfully, updating googleConnected state');
           }
         } catch (err) {
           console.error('Error checking auth status:', err);
@@ -256,7 +316,13 @@ const UploadContracts: React.FC = () => {
       });
       
       setGoogleConnected(true);
-      setSuccess(response.data.message || 'Google credentials uploaded successfully');
+      // Store the workspace email for service accounts
+      if (authMethod === 'service_account' && workspaceEmail) {
+        setUserEmail(workspaceEmail);
+        setSuccess(`Google credentials uploaded successfully (${workspaceEmail})`);
+      } else {
+        setSuccess(response.data.message || 'Google credentials uploaded successfully');
+      }
       setJustConnected(true);
     } catch (error: any) {
       console.error('Error uploading credentials:', error);
@@ -285,9 +351,16 @@ const UploadContracts: React.FC = () => {
         testResults.services.drive?.status === 'success'
       ) ? 'Success' : 'Partial Success';
       
+      // Check for email address in test results and update userEmail if available
+      if (testResults.workspaceEmail) {
+        setUserEmail(testResults.workspaceEmail);
+      } else if (testResults.services.gmail?.emailAddress) {
+        setUserEmail(testResults.services.gmail.emailAddress);
+      }
+      
       const details = [
         `Authentication: ${testResults.authentication}`,
-        `Workspace Email: ${testResults.workspaceEmail}`,
+        `Workspace Email: ${testResults.workspaceEmail || userEmail || 'Not available'}`,
         `Gmail API: ${testResults.services.gmail?.status || 'Not tested'} ${testResults.services.gmail?.error ? '- ' + testResults.services.gmail.error : ''}`,
         `Drive API: ${testResults.services.drive?.status || 'Not tested'} ${testResults.services.drive?.error ? '- ' + testResults.services.drive.error : ''}`
       ];
@@ -298,6 +371,11 @@ const UploadContracts: React.FC = () => {
       
       if (testResults.services.drive?.quotaUsage) {
         details.push(`Drive Storage: ${testResults.services.drive.quotaUsage}`);
+      }
+      
+      // Update the connected status based on test results
+      if (testResults.authentication === 'success') {
+        setGoogleConnected(true);
       }
       
       setSuccess(`Google API Test: ${status}\n${details.join('\n')}`);
@@ -640,8 +718,8 @@ const UploadContracts: React.FC = () => {
 
   // Handle next step
   const handleNext = () => {
-    if (activeStep === 0 && !googleConnected) {
-      setError('You need to connect your Google Workspace account first');
+    if (activeStep === 0 && !googleConnected && !justConnected) {
+      setError('You need to connect your Google account first');
       return;
     }
     
@@ -1281,7 +1359,7 @@ const UploadContracts: React.FC = () => {
                       variant="contained"
                       onClick={handleNext}
                       disabled={
-                        (activeStep === 0 && !googleConnected) ||
+                        (activeStep === 0 && !googleConnected && !justConnected) ||
                         (activeStep === 1 && searchParams.keywords.length === 0) ||
                         loading
                       }
