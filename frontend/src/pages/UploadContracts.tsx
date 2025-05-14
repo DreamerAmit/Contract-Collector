@@ -103,8 +103,38 @@ const UploadContracts: React.FC = () => {
 
   // Add userEmail state to store the connected user's email
   const [userEmail, setUserEmail] = useState<string>('');
+  
+  // Add googleEmail state specifically for the connected Google account
+  const [googleEmail, setGoogleEmail] = useState<string>('');
+
+  // Add emailLoading state
+  const [emailLoading, setEmailLoading] = useState(false);
 
   const steps = ['Connect Google Workspace', 'Set Search Criteria', 'Wait for Results', 'Select Contracts', 'Review & Upload'];
+
+  // Update the fetchUserEmail function to specifically set googleEmail
+  const fetchGoogleEmail = async () => {
+    if (!googleEmail) {
+      try {
+        setEmailLoading(true);
+        // First try to get the email from the /api/google/auth-status endpoint which should have OAuth email
+        const statusRes = await axios.get('/api/google/auth-status');
+        if (statusRes.data && statusRes.data.email) {
+          setGoogleEmail(statusRes.data.email);
+        } else {
+          // Then try the user-info endpoint as fallback
+          const userInfoRes = await axios.get('/api/google/user-info');
+          if (userInfoRes.data && userInfoRes.data.email) {
+            setGoogleEmail(userInfoRes.data.email);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching Google account email:', err);
+      } finally {
+        setEmailLoading(false);
+      }
+    }
+  };
 
   // Check if Google credentials are available
   useEffect(() => {
@@ -115,24 +145,17 @@ const UploadContracts: React.FC = () => {
         if (response.data.connected) {
           setGoogleConnected(true);
           
-          // If email is available in the status response, save it
+          // If email is available in the status response, save it as Google email
           if (response.data.email) {
-            setUserEmail(response.data.email);
+            setGoogleEmail(response.data.email);
           } else {
-            // Try to fetch user email separately
-            try {
-              const userInfoRes = await axios.get('/api/google/user-info');
-              if (userInfoRes.data && userInfoRes.data.email) {
-                setUserEmail(userInfoRes.data.email);
-              }
-            } catch (userInfoErr) {
-              console.error('Error fetching user info:', userInfoErr);
-            }
+            // Try to fetch Google email separately
+            await fetchGoogleEmail();
           }
           
           // If we're on step 0 and we detect we're connected, show success message
           if (activeStep === 0) {
-            setSuccess(userEmail ? `Google account is connected (${userEmail})` : 'Google account is connected');
+            setSuccess(googleEmail ? `Google account is connected (${googleEmail})` : 'Google account is connected');
           }
         } else {
           setGoogleConnected(false);
@@ -156,7 +179,14 @@ const UploadContracts: React.FC = () => {
         clearTimeout(timeoutId);
       };
     }
-  }, [activeStep, userEmail]);
+  }, [activeStep, googleEmail]);
+
+  // Fetch email immediately when googleConnected becomes true
+  useEffect(() => {
+    if (googleConnected && !googleEmail) {
+      fetchGoogleEmail();
+    }
+  }, [googleConnected, googleEmail]);
   
   // Clean up polling interval on unmount or step change
   useEffect(() => {
@@ -232,26 +262,15 @@ const UploadContracts: React.FC = () => {
             clearInterval(checkAuthInterval);
             setGoogleConnected(true);
             
-            // Get user email if available
+            // Get user email if available from auth status - this is the actual OAuth email
             if (statusRes.data.email) {
-              setUserEmail(statusRes.data.email);
-              setSuccess(`Google account connected successfully! (${statusRes.data.email})`);
+              setGoogleEmail(statusRes.data.email);
             } else {
-              // Fetch user information separately if email is not in the status response
-              try {
-                const userInfoRes = await axios.get('/api/google/user-info');
-                if (userInfoRes.data && userInfoRes.data.email) {
-                  setUserEmail(userInfoRes.data.email);
-                  setSuccess(`Google account connected successfully! (${userInfoRes.data.email})`);
-                } else {
-                  setSuccess('Google account connected successfully!');
-                }
-              } catch (userInfoErr) {
-                console.error('Error fetching user info:', userInfoErr);
-                setSuccess('Google account connected successfully!');
-              }
+              // Use the fetchGoogleEmail function
+              await fetchGoogleEmail();
             }
             
+            setSuccess('Google account connected successfully!');
             setJustConnected(true);
             console.log('Google OAuth connected successfully, updating googleConnected state');
           }
@@ -276,7 +295,7 @@ const UploadContracts: React.FC = () => {
     }
   };
 
-  // Update the uploadGoogleCredentials function to handle service account properly
+  // Update the uploadGoogleCredentials function for service accounts to use googleEmail
   const uploadGoogleCredentials = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -316,10 +335,13 @@ const UploadContracts: React.FC = () => {
       });
       
       setGoogleConnected(true);
-      // Store the workspace email for service accounts
+      // Store the workspace email for service accounts - this is the actual service account email
       if (authMethod === 'service_account' && workspaceEmail) {
-        setUserEmail(workspaceEmail);
+        setGoogleEmail(workspaceEmail);
         setSuccess(`Google credentials uploaded successfully (${workspaceEmail})`);
+      } else if (response.data.email) {
+        setGoogleEmail(response.data.email);
+        setSuccess(`Google credentials uploaded successfully (${response.data.email})`);
       } else {
         setSuccess(response.data.message || 'Google credentials uploaded successfully');
       }
@@ -351,16 +373,16 @@ const UploadContracts: React.FC = () => {
         testResults.services.drive?.status === 'success'
       ) ? 'Success' : 'Partial Success';
       
-      // Check for email address in test results and update userEmail if available
+      // Check for email address in test results and update googleEmail if available
       if (testResults.workspaceEmail) {
-        setUserEmail(testResults.workspaceEmail);
+        setGoogleEmail(testResults.workspaceEmail);
       } else if (testResults.services.gmail?.emailAddress) {
-        setUserEmail(testResults.services.gmail.emailAddress);
+        setGoogleEmail(testResults.services.gmail.emailAddress);
       }
       
       const details = [
         `Authentication: ${testResults.authentication}`,
-        `Workspace Email: ${testResults.workspaceEmail || userEmail || 'Not available'}`,
+        `Workspace Email: ${testResults.workspaceEmail || googleEmail || 'Not available'}`,
         `Gmail API: ${testResults.services.gmail?.status || 'Not tested'} ${testResults.services.gmail?.error ? '- ' + testResults.services.gmail.error : ''}`,
         `Drive API: ${testResults.services.drive?.status || 'Not tested'} ${testResults.services.drive?.error ? '- ' + testResults.services.drive.error : ''}`
       ];
@@ -747,7 +769,7 @@ const UploadContracts: React.FC = () => {
   };
 
   // Render step content
-  const getStepContent = (stepIndex: number) => {
+  const getStepContent = (stepIndex: number): React.ReactNode => {
     switch (stepIndex) {
       case 0:
         return (
@@ -760,6 +782,51 @@ const UploadContracts: React.FC = () => {
               Connect your Google account to search for contracts in Gmail and Google Drive.
             </Alert>
             
+            {googleConnected && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                <Typography fontWeight="medium">
+                  Google account is connected
+                  {emailLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5, gap: 1 }}>
+                      <CircularProgress size={16} />
+                      <span>Fetching email...</span>
+                    </Box>
+                  ) : googleEmail ? (
+                    <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
+                      <strong>Email:</strong> {googleEmail}
+                    </Box>
+                  ) : (
+                    <Box component="span" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+                      Email information not available
+                    </Box>
+                  )}
+                </Typography>
+              </Alert>
+            )}
+            
+            {/* Show this alert only for just connected accounts if not showing the main connected alert */}
+            {!googleConnected && justConnected && success && (
+              <Alert severity="success" sx={{ mt: 2, mb: 2 }}>
+                <Typography fontWeight="medium">
+                  Google account connected successfully!
+                  {emailLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5, gap: 1 }}>
+                      <CircularProgress size={16} />
+                      <span>Fetching email...</span>
+                    </Box>
+                  ) : googleEmail ? (
+                    <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
+                      <strong>Email:</strong> {googleEmail}
+                    </Box>
+                  ) : (
+                    <Box component="span" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
+                      Email information not available
+                    </Box>
+                  )}
+                </Typography>
+              </Alert>
+            )}
+
             <FormControl fullWidth sx={{ mb: 3 }}>
               <InputLabel id="auth-method-label">Authentication Method</InputLabel>
               <Select
@@ -851,12 +918,6 @@ const UploadContracts: React.FC = () => {
                 Test Connection
               </Button>
             </Box>
-            
-            {justConnected && success && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                {success}
-              </Alert>
-            )}
           </Box>
         );
       
