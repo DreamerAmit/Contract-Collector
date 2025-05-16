@@ -239,7 +239,7 @@ const UploadContracts: React.FC = () => {
   useEffect(() => {
     // Listen for messages from the OAuth popup window
     const handleAuthMessage = async (event: MessageEvent) => {
-      console.log('Received message from popup:', event.data);
+      console.log('Received message:', event.data);
       
       // Check for both string and object message formats
       if (event.data === 'google-auth-complete' || 
@@ -250,36 +250,57 @@ const UploadContracts: React.FC = () => {
         // Get the message data
         const messageData = typeof event.data === 'object' ? event.data : {};
         
-        // Use email from the message if available
+        // If the message contains the original token, restore it
+        if (messageData.originalToken) {
+          console.log('Restoring original token from OAuth message');
+          localStorage.setItem('token', messageData.originalToken);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${messageData.originalToken}`;
+        } else if (sessionStorage.getItem('auth_token_backup')) {
+          // Fallback to the token we backed up earlier
+          console.log('Restoring token from session storage backup');
+          const backupToken = sessionStorage.getItem('auth_token_backup');
+          localStorage.setItem('token', backupToken!);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${backupToken}`;
+        }
+        
+        // Update email if available in message
         if (messageData.email) {
-          console.log('Using email directly from popup message:', messageData.email);
+          console.log('Setting email from message:', messageData.email);
           setGoogleEmail(messageData.email);
         }
         
         // Wait a moment for backend to process the OAuth callback
         setTimeout(async () => {
           try {
-            // Check Google connection status
-            const statusRes = await axios.get('/api/google/auth-status');
+            // Get the current token (restored from above)
+            const token = localStorage.getItem('token');
+            if (!token) {
+              console.error('No token available after OAuth completion');
+              return;
+            }
+            
+            // Check Google connection status with the token
+            const statusRes = await axios.get('/api/google/auth-status', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
             if (statusRes.data.connected) {
               console.log('Google connected via popup message');
               setGoogleConnected(true);
               setJustConnected(true);
-              setSuccess(`Google account connected successfully!${messageData.email ? ` (${messageData.email})` : ''}`);
+              setSuccess('Google account connected successfully!');
               
-              // If we didn't already set the email from the message, fetch it
               if (!messageData.email) {
                 await fetchGoogleEmail();
-              }
-              
-              // Check if we need to redirect
-              if (messageData.redirectTo && window.location.pathname !== messageData.redirectTo) {
-                console.log(`Redirecting to ${messageData.redirectTo}`);
-                window.location.href = messageData.redirectTo;
               }
             }
           } catch (err) {
             console.error('Error checking auth status after popup message:', err);
+          } finally {
+            // Clean up the backup token
+            sessionStorage.removeItem('auth_token_backup');
           }
         }, 1000);
       }
@@ -361,67 +382,69 @@ const UploadContracts: React.FC = () => {
       setJustConnected(false);
       setGoogleEmail(''); // Clear any existing email
       
-      const response = await axios.get('/api/google/auth-url');
+      // Get the current auth token from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('You must be logged in to connect your Google account');
+        setLoading(false);
+        return;
+      }
+      
+      // Include token in headers
+      const response = await axios.get('/api/google/auth-url', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Store token in sessionStorage as backup
+      sessionStorage.setItem('auth_token_backup', token);
       
       // Open the OAuth URL in a new window
-      window.open(response.data.authUrl, '_blank', 'width=800,height=600');
+      const authWindow = window.open(response.data.authUrl, '_blank', 'width=800,height=600');
+      if (!authWindow) {
+        setError('Popup blocked! Please allow popups for this site.');
+        setLoading(false);
+        return;
+      }
       
-      // Set polling to check if auth is completed
+      // Set up polling in case the message event doesn't work
       const checkAuthInterval = setInterval(async () => {
         try {
-          const statusRes = await axios.get('/api/google/auth-status');
+          // Ensure we still have a token
+          const currentToken = localStorage.getItem('token') || sessionStorage.getItem('auth_token_backup');
+          if (!currentToken) {
+            console.error('Token is missing during OAuth polling');
+            clearInterval(checkAuthInterval);
+            return;
+          }
+          
+          const statusRes = await axios.get('/api/google/auth-status', {
+            headers: {
+              'Authorization': `Bearer ${currentToken}`
+            }
+          });
+          
           if (statusRes.data.connected) {
             clearInterval(checkAuthInterval);
+            
+            // Restore token from backup if needed
+            if (!localStorage.getItem('token') && sessionStorage.getItem('auth_token_backup')) {
+              localStorage.setItem('token', sessionStorage.getItem('auth_token_backup')!);
+              axios.defaults.headers.common['Authorization'] = `Bearer ${sessionStorage.getItem('auth_token_backup')}`;
+            }
+            
             setGoogleConnected(true);
-            
-            // Set up multi-attempt email fetching with exponential backoff
-            // This helps ensure we get the email after the backend processes OAuth
-            const fetchEmailWithRetries = async (retries = 3, delay = 2000) => {
-              console.log(`Attempting to fetch email, retry ${4-retries} of 3`);
-              await fetchGoogleEmail();
-              
-              // Check if email was found by getting latest state
-              const emailFound = await new Promise<boolean>((resolve) => {
-                // Use timeout to ensure state has been updated
-                setTimeout(async () => {
-                  try {
-                    const response = await axios.get('/api/google/status');
-                    if (response.data.workspaceEmail) {
-                      resolve(true);
-                    } else {
-                      resolve(false);
-                    }
-                  } catch (err) {
-                    console.error("Error checking if email was found:", err);
-                    resolve(false);
-                  }
-                }, 100);
-              });
-              
-              // If we found an email or ran out of retries, stop trying
-              if (emailFound || retries <= 1) {
-                console.log(emailFound ? "Email found, stopping retries" : "Out of retries");
-                return;
-              }
-              
-              // Otherwise, try again with increasing delay
-              console.log(`Email not found yet, will retry in ${delay}ms`);
-              setTimeout(() => fetchEmailWithRetries(retries - 1, delay * 1.5), delay);
-            };
-            
-            // Start the retry process after a short delay
-            setTimeout(() => fetchEmailWithRetries(), 1500);
-            
-            setSuccess('Google account connected successfully!');
             setJustConnected(true);
-            console.log('Google OAuth connected successfully, updating googleConnected state');
+            setSuccess('Google account connected successfully!');
+            await fetchGoogleEmail();
           }
         } catch (err) {
           console.error('Error checking auth status:', err);
         }
       }, 2000);
       
-      // Clear interval after 2 minutes (prevent infinite polling)
+      // Clear interval after 2 minutes
       setTimeout(() => {
         clearInterval(checkAuthInterval);
       }, 120000);
@@ -429,8 +452,8 @@ const UploadContracts: React.FC = () => {
     } catch (error: any) {
       console.error('Error initiating Google auth:', error);
       const errorMessage = error.response?.data?.error?.message || 
-                           error.response?.data?.error?.details || 
-                           'Failed to initiate Google authentication';
+                          error.response?.data?.error?.details || 
+                          'Failed to initiate Google authentication';
       setError(errorMessage);
     } finally {
       setLoading(false);

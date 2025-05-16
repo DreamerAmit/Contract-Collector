@@ -22,6 +22,13 @@ const Login: React.FC = () => {
     
     try {
       await login(email, password);
+      
+      // Check if there's a saved redirect path
+      const redirectPath = sessionStorage.getItem('redirect_after_login');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirect_after_login');
+        window.location.href = redirectPath;
+      }
     } catch (err) {
       setError('Invalid email or password');
     } finally {

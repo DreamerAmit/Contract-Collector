@@ -52,10 +52,18 @@ router.get('/auth-url', authenticate, async (req, res) => {
       'https://www.googleapis.com/auth/calendar'
     ];
     
-    // Include user ID in the state parameter for security
+    // Get the current token from the request
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+    
+    // Include user ID and token in the state parameter for security and session continuity
     const state = Buffer.from(JSON.stringify({
       userId: req.user.id,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      token: token // Include the token in the state
     })).toString('base64');
     
     const authUrl = oauth2Client.generateAuthUrl({
@@ -84,19 +92,18 @@ router.get('/oauth-callback', async (req, res) => {
       return res.status(400).send('<h1>Authorization Failed</h1><p>No authorization code received. Please try again.</p>');
     }
     
-    // Exchange code for tokens
-    const { tokens } = await oauth2Client.getToken(code);
-    
-    if (!tokens || !tokens.refresh_token) {
-      return res.status(400).send('<h1>Authentication Failed</h1><p>Did not receive a refresh token. Please try again and make sure to approve all permissions.</p>');
-    }
-    
     // Extract user ID from state if available
     let userId = null;
+    let originalToken = null;
+    
     try {
       if (state) {
-        const stateData = JSON.parse(atob(state));
+        // Use Buffer for proper base64 decoding (more reliable than atob)
+        const decodedState = Buffer.from(state, 'base64').toString();
+        const stateData = JSON.parse(decodedState);
         userId = stateData.userId;
+        originalToken = stateData.token; // Get original token from state
+        console.log('Decoded state data:', { userId, hasToken: !!originalToken });
       }
     } catch (e) {
       console.error('Error parsing state:', e);
@@ -106,74 +113,62 @@ router.get('/oauth-callback', async (req, res) => {
       return res.status(400).send('<h1>Authentication Failed</h1><p>User session not found. Please try again.</p>');
     }
     
+    // Exchange code for tokens
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    if (!tokens || !tokens.refresh_token) {
+      return res.status(400).send('<h1>Authentication Failed</h1><p>Did not receive a refresh token. Please try again and make sure to approve all permissions.</p>');
+    }
+    
     // Store refresh token with user
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).send('<h1>Authentication Failed</h1><p>User not found. Please try again.</p>');
     }
     
-    // Get user's email from token info if possible
+    // Get user's email from token info
     let userEmail = null;
     try {
       oauth2Client.setCredentials(tokens);
-      
-      // First, try to get the email from token info
       const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
       userEmail = tokenInfo.email;
       console.log('Retrieved email from token info:', userEmail);
-      
-      // If that doesn't work, try getting it directly from Gmail API
-      if (!userEmail) {
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-        try {
-          const profile = await gmail.users.getProfile({ userId: 'me' });
-          userEmail = profile.data.emailAddress;
-          console.log('Retrieved email from Gmail profile:', userEmail);
-        } catch (gmailErr) {
-          console.error('Error getting email from Gmail profile:', gmailErr);
-        }
-      }
     } catch (e) {
       console.error('Error getting token info:', e);
     }
     
     // Store tokens in the database
     user.googleRefreshToken = JSON.stringify(tokens);
-    
-    // Only set the email if we successfully extracted it
-    if (userEmail) {
-      // Set the actual Gmail address for OAuth login
-      user.googleWorkspaceEmail = userEmail;
-      console.log('Storing user email in database:', userEmail);
-    } else {
-      console.warn('Could not extract email from either token info or Gmail profile');
-    }
-    
+    user.googleWorkspaceEmail = userEmail;
     await user.save();
     
-    // Render success page with improved redirection and email passing
+    // Render success page with comprehensive session data
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
       <p>You can now close this window and return to the application.</p>
       <script>
-        // Check if opener exists and send message with email info
+        // Send detailed message to parent window
         if (window.opener) {
-          // Send detailed message including the email address
           window.opener.postMessage({
             type: 'google-auth-complete',
             success: true,
             email: "${userEmail || ''}",
-            redirectTo: '/upload-contracts'
+            userId: "${userId}",
+            redirectTo: '/upload-contracts',
+            originalToken: "${originalToken || ''}" // Send original token back
           }, '*');
           
-          // Log the message being sent to parent window
-          console.log('Sending message to parent window with email:', "${userEmail || ''}");
+          console.log("Sending auth complete message to parent");
           
           // Close this window after a short delay
           setTimeout(() => window.close(), 1500);
         } else {
-          // If no opener, redirect this window
+          // If no opener, add token to localStorage and redirect
+          const token = "${originalToken || ''}";
+          if (token) {
+            window.localStorage.setItem('token', token);
+          }
           window.location.href = '/upload-contracts';
         }
       </script>

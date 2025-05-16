@@ -11,7 +11,19 @@ const api = axios.create({
 // Request interceptor to add auth token to every request
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // First try localStorage
+    let token = localStorage.getItem('token');
+    
+    // If not found in localStorage, try sessionStorage backup
+    if (!token) {
+      token = sessionStorage.getItem('auth_token_backup');
+      // If found in backup, restore to localStorage
+      if (token) {
+        console.log('Restoring token from backup during request');
+        localStorage.setItem('token', token);
+      }
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -20,15 +32,41 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle auth errors
+// Response interceptor with improved handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle 401 errors (unauthorized)
+    // Handle 401 errors (unauthorized) more intelligently
     if (error.response && error.response.status === 401) {
-      // Clear local storage and redirect to login
+      console.log('Received 401 error - checking if we have a backup token');
+      
+      // Check if we have a backup token before redirecting
+      const backupToken = sessionStorage.getItem('auth_token_backup');
+      if (backupToken && !localStorage.getItem('token')) {
+        // Try to restore from backup instead of immediate logout
+        console.log('Restoring from backup token after 401 error');
+        localStorage.setItem('token', backupToken);
+        
+        // Don't redirect yet - let the request retry with new token
+        const originalRequest = error.config;
+        if (!originalRequest._retry) {
+          originalRequest._retry = true;
+          originalRequest.headers['Authorization'] = `Bearer ${backupToken}`;
+          return api(originalRequest);
+        }
+      }
+      
+      // If we reach here, we really need to log out
+      console.log('Authentication failed - redirecting to login');
       localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('auth_token_backup');
+      
+      // Save current path for redirect after login
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        sessionStorage.setItem('redirect_after_login', currentPath);
+      }
+      
       window.location.href = '/login';
     }
     return Promise.reject(error);
