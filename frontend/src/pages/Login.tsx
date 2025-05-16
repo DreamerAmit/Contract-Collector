@@ -31,7 +31,7 @@ const Login: React.FC = () => {
         window.location.href = redirectPath;
       } else {
         // Default redirect to dashboard
-        window.location.href = '/dashboard';
+        window.location.href = '/upload-contracts';
       }
     } catch (err) {
       setError('Invalid email or password');
