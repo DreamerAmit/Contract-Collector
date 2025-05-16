@@ -54,9 +54,8 @@ async function createGmailClient(credentialsData, userEmail) {
     // Try to get the actual email from token info for OAuth
     try {
       // This will refresh the token if needed
-      const tokenInfo = await authClient.getTokenInfo(
-        credentialsData.access_token || await authClient.getAccessToken()
-      );
+      const accessToken = credentialsData.access_token || (await authClient.getAccessToken()).token;
+      const tokenInfo = await authClient.getTokenInfo(accessToken);
       
       if (tokenInfo.email) {
         console.log('Retrieved email from OAuth token:', tokenInfo.email);
@@ -80,10 +79,24 @@ async function createGmailClient(credentialsData, userEmail) {
   // For OAuth, if we couldn't get the email from token info, try to get it from profile
   if (!actualEmail && credentialsData.refresh_token) {
     try {
+      console.log('Getting email from Gmail profile...');
       const profile = await gmailClient.users.getProfile({ userId: 'me' });
       if (profile.data.emailAddress) {
         console.log('Retrieved email from Gmail profile:', profile.data.emailAddress);
         actualEmail = profile.data.emailAddress;
+        
+        // If we found an email from the Gmail API, update the user's record
+        // to ensure consistency across the application
+        if (actualEmail) {
+          try {
+            // This requires passing the userId to this function, which might require API changes
+            // But at least log this for diagnosis
+            console.log('Found email from Gmail API:', actualEmail);
+            console.log('Consider updating the user record with this email');
+          } catch (updateErr) {
+            console.error('Unable to update user record with Gmail email:', updateErr);
+          }
+        }
       }
     } catch (err) {
       console.error('Error getting Gmail profile:', err);

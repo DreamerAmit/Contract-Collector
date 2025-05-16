@@ -112,83 +112,75 @@ const UploadContracts: React.FC = () => {
 
   const steps = ['Connect Google Workspace', 'Set Search Criteria', 'Wait for Results', 'Select Contracts', 'Review & Upload'];
 
-  // Update the fetchGoogleEmail function to try different endpoints in sequence
+  // Enhanced fetchGoogleEmail function with fallbacks and retry logic
   const fetchGoogleEmail = async () => {
-    if (!googleEmail) {
+    try {
+      setEmailLoading(true);
+      console.log('Attempting to fetch Gmail account email...');
+      
+      // Try multiple endpoints in sequence to get the email
+      // 1. First try auth-status endpoint which should have the most recent value
       try {
-        setEmailLoading(true);
-        
-        // Try multiple endpoints to get the email
-        // 1. First try auth-status endpoint which should now have the OAuth email
         const authStatusResponse = await axios.get('/api/google/auth-status');
         if (authStatusResponse.data && authStatusResponse.data.email) {
           console.log('Found email in auth-status endpoint:', authStatusResponse.data.email);
           setGoogleEmail(authStatusResponse.data.email);
           return;
         }
-        
-        // 2. Try Google status endpoint which has workspaceEmail for service accounts
+      } catch (err) {
+        console.error('Error fetching from auth-status endpoint:', err);
+      }
+      
+      // 2. Try Gmail profile endpoint (most accurate)
+      try {
+        const profileResponse = await axios.get('/api/google/gmail/profile');
+        if (profileResponse.data && profileResponse.data.emailAddress) {
+          console.log('Found email in Gmail profile:', profileResponse.data.emailAddress);
+          setGoogleEmail(profileResponse.data.emailAddress);
+          return;
+        }
+      } catch (profileErr) {
+        console.error('Error fetching Gmail profile:', profileErr);
+      }
+      
+      // 3. Try Google status endpoint 
+      try {
         const statusResponse = await axios.get('/api/google/status');
         if (statusResponse.data && statusResponse.data.workspaceEmail) {
           console.log('Found email in status endpoint:', statusResponse.data.workspaceEmail);
           setGoogleEmail(statusResponse.data.workspaceEmail);
           return;
         }
-        
-        // 3. Try getting the profile directly from Gmail API if available
-        try {
-          const profileResponse = await axios.get('/api/google/gmail/profile');
-          if (profileResponse.data && profileResponse.data.emailAddress) {
-            console.log('Found email in Gmail profile:', profileResponse.data.emailAddress);
-            setGoogleEmail(profileResponse.data.emailAddress);
-            return;
-          }
-        } catch (profileErr) {
-          console.error('Error fetching Gmail profile:', profileErr);
-          // Continue to next method if this fails
-        }
-        
-        // 4. Try test-connection which might have more info
-        try {
-          const testResponse = await axios.get('/api/google/test-connection');
-          if (testResponse.data) {
-            // Check multiple possible sources of email in the test response
-            const email = 
-              testResponse.data.workspaceEmail || 
-              (testResponse.data.services?.gmail?.emailAddress) ||
-              null;
-            
-            if (email) {
-              console.log('Found email in test-connection endpoint:', email);
-              setGoogleEmail(email);
-              return;
-            }
-          }
-        } catch (testErr) {
-          console.error('Error in test-connection endpoint:', testErr);
-          // Continue to next method if this fails
-        }
-        
-        // 5. Try user profile endpoint which might have the email
-        try {
-          const profileResponse = await axios.get('/api/auth/me');
-          if (profileResponse.data && profileResponse.data.googleWorkspaceEmail) {
-            console.log('Found email in user profile:', profileResponse.data.googleWorkspaceEmail);
-            setGoogleEmail(profileResponse.data.googleWorkspaceEmail);
-            return;
-          }
-        } catch (profileErr) {
-          console.error('Error fetching user profile:', profileErr);
-        }
-        
-        // If we reach here, log that we couldn't find the email
-        console.warn('Could not retrieve Google account email from any endpoint');
-        
       } catch (err) {
-        console.error('Error fetching Google account email:', err);
-      } finally {
-        setEmailLoading(false);
+        console.error('Error fetching from status endpoint:', err);
       }
+      
+      // 4. Try test-connection as last resort
+      try {
+        const testResponse = await axios.get('/api/google/test-connection');
+        if (testResponse.data) {
+          const email = 
+            testResponse.data.workspaceEmail || 
+            (testResponse.data.services?.gmail?.emailAddress) ||
+            null;
+          
+          if (email) {
+            console.log('Found email in test-connection endpoint:', email);
+            setGoogleEmail(email);
+            return;
+          }
+        }
+      } catch (testErr) {
+        console.error('Error in test-connection endpoint:', testErr);
+      }
+      
+      // If we reach here, we couldn't find the email
+      console.warn('Could not retrieve Google account email from any endpoint');
+      
+    } catch (err) {
+      console.error('Error fetching Google account email:', err);
+    } finally {
+      setEmailLoading(false);
     }
   };
 
@@ -243,24 +235,48 @@ const UploadContracts: React.FC = () => {
     }
   }, [activeStep]);
 
-  // Add message listener for OAuth window completion
+  // Improve the message handler to properly capture and use the email
   useEffect(() => {
     // Listen for messages from the OAuth popup window
     const handleAuthMessage = async (event: MessageEvent) => {
-      if (event.data === 'google-auth-complete') {
-        console.log('Received google-auth-complete message from popup');
+      console.log('Received message from popup:', event.data);
+      
+      // Check for both string and object message formats
+      if (event.data === 'google-auth-complete' || 
+          (typeof event.data === 'object' && event.data?.type === 'google-auth-complete')) {
+        
+        console.log('Received authentication message from popup');
+        
+        // Get the message data
+        const messageData = typeof event.data === 'object' ? event.data : {};
+        
+        // Use email from the message if available
+        if (messageData.email) {
+          console.log('Using email directly from popup message:', messageData.email);
+          setGoogleEmail(messageData.email);
+        }
+        
         // Wait a moment for backend to process the OAuth callback
         setTimeout(async () => {
           try {
+            // Check Google connection status
             const statusRes = await axios.get('/api/google/auth-status');
             if (statusRes.data.connected) {
               console.log('Google connected via popup message');
               setGoogleConnected(true);
               setJustConnected(true);
-              setSuccess('Google account connected successfully!');
+              setSuccess(`Google account connected successfully!${messageData.email ? ` (${messageData.email})` : ''}`);
               
-              // Fetch email after connection
-              await fetchGoogleEmail();
+              // If we didn't already set the email from the message, fetch it
+              if (!messageData.email) {
+                await fetchGoogleEmail();
+              }
+              
+              // Check if we need to redirect
+              if (messageData.redirectTo && window.location.pathname !== messageData.redirectTo) {
+                console.log(`Redirecting to ${messageData.redirectTo}`);
+                window.location.href = messageData.redirectTo;
+              }
             }
           } catch (err) {
             console.error('Error checking auth status after popup message:', err);

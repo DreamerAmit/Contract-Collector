@@ -124,6 +124,16 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setUser(userData);
   };
 
+  // Add a function to ensure authentication before making any request
+  const ensureAuth = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      return true;
+    }
+    return false;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 

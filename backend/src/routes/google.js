@@ -116,29 +116,66 @@ router.get('/oauth-callback', async (req, res) => {
     let userEmail = null;
     try {
       oauth2Client.setCredentials(tokens);
+      
+      // First, try to get the email from token info
       const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
       userEmail = tokenInfo.email;
       console.log('Retrieved email from token info:', userEmail);
+      
+      // If that doesn't work, try getting it directly from Gmail API
+      if (!userEmail) {
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+        try {
+          const profile = await gmail.users.getProfile({ userId: 'me' });
+          userEmail = profile.data.emailAddress;
+          console.log('Retrieved email from Gmail profile:', userEmail);
+        } catch (gmailErr) {
+          console.error('Error getting email from Gmail profile:', gmailErr);
+        }
+      }
     } catch (e) {
       console.error('Error getting token info:', e);
     }
     
     // Store tokens in the database
     user.googleRefreshToken = JSON.stringify(tokens);
-    // Set the actual Gmail address for OAuth login
-    user.googleWorkspaceEmail = userEmail;
+    
+    // Only set the email if we successfully extracted it
+    if (userEmail) {
+      // Set the actual Gmail address for OAuth login
+      user.googleWorkspaceEmail = userEmail;
+      console.log('Storing user email in database:', userEmail);
+    } else {
+      console.warn('Could not extract email from either token info or Gmail profile');
+    }
+    
     await user.save();
     
-    // Render success page
+    // Render success page with improved redirection and email passing
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
       <p>You can now close this window and return to the application.</p>
       <script>
-        // Notify parent window that auth is complete
-        window.opener && window.opener.postMessage('google-auth-complete', '*');
-        // Close window after 3 seconds
-        setTimeout(() => window.close(), 3000);
+        // Check if opener exists and send message with email info
+        if (window.opener) {
+          // Send detailed message including the email address
+          window.opener.postMessage({
+            type: 'google-auth-complete',
+            success: true,
+            email: "${userEmail || ''}",
+            redirectTo: '/upload-contracts'
+          }, '*');
+          
+          // Log the message being sent to parent window
+          console.log('Sending message to parent window with email:', "${userEmail || ''}");
+          
+          // Close this window after a short delay
+          setTimeout(() => window.close(), 1500);
+        } else {
+          // If no opener, redirect this window
+          window.location.href = '/upload-contracts';
+        }
       </script>
     `);
   } catch (error) {
