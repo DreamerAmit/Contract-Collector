@@ -32,7 +32,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor with improved handling
+// Response interceptor with specific redirect handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -61,9 +61,12 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       sessionStorage.removeItem('auth_token_backup');
       
-      // Save current path for redirect after login
+      // Save current path for specific redirect after login
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login') {
+      if (currentPath.includes('upload-contracts')) {
+        // Ensure we remember to go back to upload-contracts specifically
+        sessionStorage.setItem('redirect_after_login', '/upload-contracts');
+      } else if (currentPath !== '/login') {
         sessionStorage.setItem('redirect_after_login', currentPath);
       }
       

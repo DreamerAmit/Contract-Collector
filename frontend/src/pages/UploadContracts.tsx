@@ -290,11 +290,18 @@ const UploadContracts: React.FC = () => {
               console.log('Google connected via popup message');
               setGoogleConnected(true);
               setJustConnected(true);
-              setSuccess('Google account connected successfully!');
+              
+              // Set success message with email if available
+              const email = messageData.email || statusRes.data.email;
+              setSuccess(`Google account connected successfully!${email ? ` (${email})` : ''}`);
               
               if (!messageData.email) {
                 await fetchGoogleEmail();
               }
+              
+              // No need to redirect since we're already on the Upload Contracts page
+              // Just ensure we're at the right step
+              setActiveStep(0); // Reset to first step
             }
           } catch (err) {
             console.error('Error checking auth status after popup message:', err);
@@ -1583,6 +1590,32 @@ const UploadContracts: React.FC = () => {
         return 'Unknown step';
     }
   };
+
+  // Add this useEffect to handle URL parameters for OAuth redirect
+  useEffect(() => {
+    // Check if we have a 'google-connected' query parameter
+    const url = new URL(window.location.href);
+    const googleConnected = url.searchParams.get('google-connected');
+    const email = url.searchParams.get('email');
+    
+    if (googleConnected === 'true') {
+      // Remove the parameters from URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Show success message with email if available
+      setGoogleConnected(true);
+      setJustConnected(true);
+      setSuccess(`Google account connected successfully!${email ? ` (${email})` : ''}`);
+      
+      // If email is in the URL, use it
+      if (email) {
+        setGoogleEmail(email);
+      } else {
+        // Otherwise fetch email
+        fetchGoogleEmail();
+      }
+    }
+  }, []);
 
   return (
     <Container maxWidth="lg">

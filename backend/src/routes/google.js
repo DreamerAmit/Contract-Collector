@@ -142,35 +142,44 @@ router.get('/oauth-callback', async (req, res) => {
     user.googleWorkspaceEmail = userEmail;
     await user.save();
     
-    // Render success page with comprehensive session data
+    // Render success page with correct redirection
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
       <p>You can now close this window and return to the application.</p>
       <script>
-        // Send detailed message to parent window
-        if (window.opener) {
-          window.opener.postMessage({
-            type: 'google-auth-complete',
-            success: true,
-            email: "${userEmail || ''}",
-            userId: "${userId}",
-            redirectTo: '/upload-contracts',
-            originalToken: "${originalToken || ''}" // Send original token back
-          }, '*');
-          
-          console.log("Sending auth complete message to parent");
-          
-          // Close this window after a short delay
-          setTimeout(() => window.close(), 1500);
-        } else {
-          // If no opener, add token to localStorage and redirect
-          const token = "${originalToken || ''}";
-          if (token) {
-            window.localStorage.setItem('token', token);
+        // Function to redirect back to the application
+        function returnToApp() {
+          // Send detailed message to parent window
+          if (window.opener) {
+            // First post a message to the parent window
+            window.opener.postMessage({
+              type: 'google-auth-complete',
+              success: true,
+              email: "${userEmail || ''}",
+              userId: "${userId}",
+              redirectTo: 'upload-contracts',
+              originalToken: "${originalToken || ''}"
+            }, '*');
+            
+            console.log("Sending auth complete message to parent");
+            
+            // Close this window after a short delay
+            setTimeout(() => window.close(), 1500);
+          } else {
+            // If no opener, add token to localStorage and explicitly redirect to upload contracts with parameters
+            const token = "${originalToken || ''}";
+            if (token) {
+              window.localStorage.setItem('token', token);
+            }
+            
+            // Always go to upload contracts with parameters
+            window.location.href = '/upload-contracts?google-connected=true&email=${encodeURIComponent(userEmail || '')}';
           }
-          window.location.href = '/upload-contracts';
         }
+        
+        // Call return function immediately
+        returnToApp();
       </script>
     `);
   } catch (error) {

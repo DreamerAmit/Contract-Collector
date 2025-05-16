@@ -26,8 +26,12 @@ const Login: React.FC = () => {
       // Check if there's a saved redirect path
       const redirectPath = sessionStorage.getItem('redirect_after_login');
       if (redirectPath) {
+        console.log('Redirecting to saved path after login:', redirectPath);
         sessionStorage.removeItem('redirect_after_login');
         window.location.href = redirectPath;
+      } else {
+        // Default redirect to dashboard
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       setError('Invalid email or password');

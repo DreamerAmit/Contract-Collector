@@ -60,7 +60,22 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="contracts" element={<ContractList />} />
             <Route path="calendar" element={<Calendar />} />
-            <Route path="upload-contracts" element={<UploadContracts />} />
+            <Route 
+              path="upload-contracts" 
+              element={
+                user ? (
+                  <UploadContracts />
+                ) : (
+                  // If user is trying to access Upload Contracts but not logged in,
+                  // try to restore session
+                  <Navigate to={
+                    localStorage.getItem('token') ? 
+                    "/upload-contracts" : // Try with restored token
+                    "/login?redirect=/upload-contracts" // Add redirect parameter
+                  } />
+                )
+              } 
+            />
           </Route>
           
           {/* Fallback route */}
