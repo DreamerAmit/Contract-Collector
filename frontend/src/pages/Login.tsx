@@ -30,7 +30,7 @@ const Login: React.FC = () => {
         sessionStorage.removeItem('redirect_after_login');
         window.location.href = redirectPath;
       } else {
-        // Default redirect to dashboard
+        // Default redirect to upload-contracts instead of dashboard
         window.location.href = '/upload-contracts';
       }
     } catch (err) {

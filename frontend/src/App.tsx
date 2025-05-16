@@ -51,12 +51,12 @@ function App() {
         <CssBaseline />
         <Routes>
           {/* Public routes */}
-          <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-          <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
+          <Route path="/login" element={!user ? <Login /> : <Navigate to="/upload-contracts" />} />
+          <Route path="/register" element={!user ? <Register /> : <Navigate to="/upload-contracts" />} />
           
           {/* Protected routes */}
           <Route path="/" element={user ? <Layout /> : <Navigate to="/login" />}>
-            <Route index element={<Navigate to="/dashboard" />} />
+            <Route index element={<Navigate to="/upload-contracts" />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="contracts" element={<ContractList />} />
             <Route path="calendar" element={<Calendar />} />
@@ -79,7 +79,7 @@ function App() {
           </Route>
           
           {/* Fallback route */}
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/upload-contracts" />} />
         </Routes>
       </LocalizationProvider>
     </ThemeProvider>

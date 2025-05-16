@@ -121,10 +121,14 @@ const UploadContracts: React.FC = () => {
       // Try multiple endpoints in sequence to get the email
       // 1. First try auth-status endpoint which should have the most recent value
       try {
+        console.log('Trying auth-status endpoint...');
         const authStatusResponse = await axios.get('/api/google/auth-status');
+        console.log('Auth status response:', authStatusResponse.data);
+        
         if (authStatusResponse.data && authStatusResponse.data.email) {
           console.log('Found email in auth-status endpoint:', authStatusResponse.data.email);
           setGoogleEmail(authStatusResponse.data.email);
+          setGoogleConnected(true);
           return;
         }
       } catch (err) {
@@ -133,10 +137,14 @@ const UploadContracts: React.FC = () => {
       
       // 2. Try Gmail profile endpoint (most accurate)
       try {
+        console.log('Trying Gmail profile endpoint...');
         const profileResponse = await axios.get('/api/google/gmail/profile');
+        console.log('Gmail profile response:', profileResponse.data);
+        
         if (profileResponse.data && profileResponse.data.emailAddress) {
           console.log('Found email in Gmail profile:', profileResponse.data.emailAddress);
           setGoogleEmail(profileResponse.data.emailAddress);
+          setGoogleConnected(true);
           return;
         }
       } catch (profileErr) {
@@ -145,10 +153,14 @@ const UploadContracts: React.FC = () => {
       
       // 3. Try Google status endpoint 
       try {
+        console.log('Trying Google status endpoint...');
         const statusResponse = await axios.get('/api/google/status');
+        console.log('Google status response:', statusResponse.data);
+        
         if (statusResponse.data && statusResponse.data.workspaceEmail) {
           console.log('Found email in status endpoint:', statusResponse.data.workspaceEmail);
           setGoogleEmail(statusResponse.data.workspaceEmail);
+          setGoogleConnected(statusResponse.data.connected);
           return;
         }
       } catch (err) {
@@ -157,7 +169,10 @@ const UploadContracts: React.FC = () => {
       
       // 4. Try test-connection as last resort
       try {
+        console.log('Trying test-connection endpoint as last resort...');
         const testResponse = await axios.get('/api/google/test-connection');
+        console.log('Test connection response:', testResponse.data);
+        
         if (testResponse.data) {
           const email = 
             testResponse.data.workspaceEmail || 
@@ -167,6 +182,7 @@ const UploadContracts: React.FC = () => {
           if (email) {
             console.log('Found email in test-connection endpoint:', email);
             setGoogleEmail(email);
+            setGoogleConnected(true);
             return;
           }
         }
@@ -295,16 +311,28 @@ const UploadContracts: React.FC = () => {
               const email = messageData.email || statusRes.data.email;
               setSuccess(`Google account connected successfully!${email ? ` (${email})` : ''}`);
               
-              if (!messageData.email) {
+              if (!messageData.email && !googleEmail) {
                 await fetchGoogleEmail();
               }
               
-              // No need to redirect since we're already on the Upload Contracts page
+              // Ensure we stay on the upload-contracts page
+              if (window.location.pathname !== '/upload-contracts') {
+                console.log('Redirecting to upload-contracts page after OAuth completion');
+                window.location.href = '/upload-contracts';
+                return;
+              }
+              
               // Just ensure we're at the right step
               setActiveStep(0); // Reset to first step
             }
           } catch (err) {
             console.error('Error checking auth status after popup message:', err);
+            
+            // Fallback if anything fails - redirect to upload-contracts
+            if (window.location.pathname !== '/upload-contracts') {
+              console.log('Fallback redirection to upload-contracts after OAuth error');
+              window.location.href = '/upload-contracts';
+            }
           } finally {
             // Clean up the backup token
             sessionStorage.removeItem('auth_token_backup');
@@ -1024,7 +1052,7 @@ const UploadContracts: React.FC = () => {
                   </Box>
                 </Typography>
               </Alert>
-            ) : justConnected && success ? (
+            ) : justConnected ? (
               <Alert severity="success" sx={{ mt: 2, mb: 3 }}>
                 <Typography fontWeight="medium">
                   Google account connected successfully!
@@ -1598,7 +1626,11 @@ const UploadContracts: React.FC = () => {
     const googleConnected = url.searchParams.get('google-connected');
     const email = url.searchParams.get('email');
     
+    console.log('Checking URL parameters:', { googleConnected, email });
+    
     if (googleConnected === 'true') {
+      console.log('Google connected param detected, setting states');
+      
       // Remove the parameters from URL without refreshing
       window.history.replaceState({}, document.title, window.location.pathname);
       
@@ -1609,9 +1641,11 @@ const UploadContracts: React.FC = () => {
       
       // If email is in the URL, use it
       if (email) {
+        console.log('Setting email from URL param:', email);
         setGoogleEmail(email);
       } else {
         // Otherwise fetch email
+        console.log('No email in URL, fetching from API');
         fetchGoogleEmail();
       }
     }
@@ -1633,10 +1667,8 @@ const UploadContracts: React.FC = () => {
           </Alert>
         )}
 
-        {/* Only show success messages that aren't related to Google connection */}
-        {success && 
-          !success.includes('Google account') && 
-          !success.includes('connected successfully') && (
+        {/* Display all success messages in main UI */}
+        {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
             {success}
           </Alert>

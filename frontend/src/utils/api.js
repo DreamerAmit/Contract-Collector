@@ -68,6 +68,9 @@ api.interceptors.response.use(
         sessionStorage.setItem('redirect_after_login', '/upload-contracts');
       } else if (currentPath !== '/login') {
         sessionStorage.setItem('redirect_after_login', currentPath);
+      } else {
+        // Default to upload-contracts if coming from login page
+        sessionStorage.setItem('redirect_after_login', '/upload-contracts');
       }
       
       window.location.href = '/login';
