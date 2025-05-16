@@ -193,6 +193,17 @@ const UploadContracts: React.FC = () => {
       // If we reach here, we couldn't find the email
       console.warn('Could not retrieve Google account email from any endpoint');
       
+      // Even if we couldn't find the email, still mark as connected if we have a refresh token
+      try {
+        const statusResponse = await axios.get('/api/google/status');
+        if (statusResponse.data && statusResponse.data.connected) {
+          console.log('Setting googleConnected=true despite not finding email');
+          setGoogleConnected(true);
+        }
+      } catch (finalErr) {
+        console.error('Error in final connection check:', finalErr);
+      }
+      
     } catch (err) {
       console.error('Error fetching Google account email:', err);
     } finally {
@@ -224,7 +235,14 @@ const UploadContracts: React.FC = () => {
           
           // If we're on step 0 and we detect we're connected, show success message
           if (activeStep === 0) {
-            setSuccess(googleEmail ? `Google account is connected (${googleEmail})` : 'Google account is connected');
+            const email = response.data.workspaceEmail || googleEmail;
+            const successMsg = email 
+              ? `Google account is connected (${email})` 
+              : 'Google account is connected';
+            console.log('Setting success message during initial check:', successMsg);
+            setSuccess(successMsg);
+            // Also set justConnected to enable Next button
+            setJustConnected(true);
           }
         } else {
           console.log('Google is not connected');
@@ -309,7 +327,12 @@ const UploadContracts: React.FC = () => {
               
               // Set success message with email if available
               const email = messageData.email || statusRes.data.email;
-              setSuccess(`Google account connected successfully!${email ? ` (${email})` : ''}`);
+              const successMsg = `Google account connected successfully!${email ? ` (${email})` : ''}`;
+              console.log('Setting success message from popup:', successMsg);
+              setSuccess(successMsg);
+              
+              // Also display alert
+              alert(`Google account successfully connected!${email ? ` (${email})` : ''}`);
               
               if (!messageData.email && !googleEmail) {
                 await fetchGoogleEmail();
@@ -1637,7 +1660,11 @@ const UploadContracts: React.FC = () => {
       // Show success message with email if available
       setGoogleConnected(true);
       setJustConnected(true);
-      setSuccess(`Google account connected successfully!${email ? ` (${email})` : ''}`);
+      
+      // Set explicit success message
+      const successMsg = `Google account connected successfully!${email ? ` (${email})` : ''}`;
+      console.log('Setting success message:', successMsg);
+      setSuccess(successMsg);
       
       // If email is in the URL, use it
       if (email) {
@@ -1648,6 +1675,21 @@ const UploadContracts: React.FC = () => {
         console.log('No email in URL, fetching from API');
         fetchGoogleEmail();
       }
+      
+      // Force check credentials again to ensure states are updated
+      setTimeout(() => {
+        axios.get('/api/google/status')
+          .then(response => {
+            console.log('Force checking Google status after redirect:', response.data);
+            if (response.data.connected) {
+              setGoogleConnected(true);
+              if (response.data.workspaceEmail) {
+                setGoogleEmail(response.data.workspaceEmail);
+              }
+            }
+          })
+          .catch(err => console.error('Error force-checking Google status:', err));
+      }, 500);
     }
   }, []);
 
