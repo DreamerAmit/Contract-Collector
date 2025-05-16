@@ -219,6 +219,7 @@ const UploadContracts: React.FC = () => {
         console.log('Google credentials status:', response.data);
         
         if (response.data.connected) {
+          console.log('Setting googleConnected = true');
           setGoogleConnected(true);
           
           console.log('Google is connected, attempting to fetch email...');
@@ -242,23 +243,34 @@ const UploadContracts: React.FC = () => {
             console.log('Setting success message during initial check:', successMsg);
             setSuccess(successMsg);
             // Also set justConnected to enable Next button
+            console.log('Setting justConnected = true');
             setJustConnected(true);
           }
         } else {
           console.log('Google is not connected');
           setGoogleConnected(false);
         }
+        
+        // Always log current state after check
+        console.log('Current states after Google check:', {
+          googleConnected: response.data.connected,
+          email: response.data.workspaceEmail || googleEmail,
+          justConnected
+        });
+        
       } catch (error) {
         console.error('Error checking Google credentials:', error);
         setGoogleConnected(false);
       }
     };
 
+    // Call immediately on component mount
     checkGoogleCredentials();
     
-    // Also check credentials status when component mounts for step 0
+    // Set up a more frequent polling initially to ensure we catch the connection
     if (activeStep === 0) {
-      const intervalId = setInterval(checkGoogleCredentials, 5000);
+      // Check every 2 seconds for the first 30 seconds
+      const intervalId = setInterval(checkGoogleCredentials, 2000);
       // Clean up interval after 30 seconds to avoid infinite polling
       const timeoutId = setTimeout(() => clearInterval(intervalId), 30000);
       
@@ -1693,6 +1705,23 @@ const UploadContracts: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    // Force check Google connection status on component mount
+    console.log('Component mounted - checking Google connection status');
+    axios.get('/api/google/status')
+      .then(response => {
+        console.log('Initial Google status check:', response.data);
+        if (response.data.connected) {
+          console.log('Setting initial googleConnected = true from component mount');
+          setGoogleConnected(true);
+          if (response.data.workspaceEmail) {
+            setGoogleEmail(response.data.workspaceEmail);
+          }
+        }
+      })
+      .catch(err => console.error('Error in initial Google status check:', err));
+  }, []); // Empty dependency array - only run once on mount
+
   return (
     <Container maxWidth="lg">
       <Paper elevation={3} sx={{ p: 3, my: 3 }}>
@@ -1716,6 +1745,29 @@ const UploadContracts: React.FC = () => {
           </Alert>
         )}
 
+        {/* Debug info - will be visible to help troubleshoot */}
+        <Box sx={{ mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="subtitle2">Debug Information:</Typography>
+          <Box>googleConnected: {googleConnected ? 'true' : 'false'}</Box>
+          <Box>justConnected: {justConnected ? 'true' : 'false'}</Box>
+          <Box>googleEmail: {googleEmail || 'not set'}</Box>
+          <Box>Step {activeStep}: {steps[activeStep]}</Box>
+          <Button size="small" variant="outlined" onClick={() => {
+            console.log("Manual state check triggered");
+            axios.get('/api/google/status')
+              .then(response => {
+                console.log('Manual status check:', response.data);
+                if (response.data.connected) {
+                  setGoogleConnected(true);
+                  console.log('Manually setting googleConnected = true');
+                  alert('Google is connected! Updating state...');
+                }
+              });
+          }}>
+            Force Check Connection
+          </Button>
+        </Box>
+
         <Box sx={{ width: '100%' }}>
           <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
             {steps.map((label) => (
@@ -1724,6 +1776,16 @@ const UploadContracts: React.FC = () => {
               </Step>
             ))}
           </Stepper>
+
+          {/* Always show connection status when on step 0 */}
+          {activeStep === 0 && googleConnected && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              <Typography>
+                <strong>Google account is connected!</strong>
+                {googleEmail ? ` Using email: ${googleEmail}` : ' Email information not available.'}
+              </Typography>
+            </Alert>
+          )}
 
           {loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', my: 4 }}>
@@ -1764,7 +1826,7 @@ const UploadContracts: React.FC = () => {
                       variant="contained"
                       onClick={handleNext}
                       disabled={
-                        (activeStep === 0 && !googleConnected && !justConnected) ||
+                        (activeStep === 0 && !googleConnected) ||
                         (activeStep === 1 && searchParams.keywords.length === 0) ||
                         loading
                       }
