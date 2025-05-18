@@ -33,6 +33,7 @@ async function createGmailClient(credentialsData, userEmail) {
       ],
       userEmail
     );
+    await authClient.authorize();
   } else if (credentialsData.refresh_token) {
     // OAuth client authentication for regular Gmail users
     console.log('Creating Gmail client with OAuth credentials');
@@ -53,25 +54,22 @@ async function createGmailClient(credentialsData, userEmail) {
     
     // Try to get the actual email from token info for OAuth
     try {
-      // This will refresh the token if needed
-      const accessToken = credentialsData.access_token || (await authClient.getAccessToken()).token;
-      const tokenInfo = await authClient.getTokenInfo(accessToken);
-      
-      if (tokenInfo.email) {
-        console.log('Retrieved email from OAuth token:', tokenInfo.email);
-        actualEmail = tokenInfo.email;
+      const tokenInfo = await authClient.getAccessToken();
+      if (tokenInfo.token) {
+        console.log('OAuth2 access token is available/refreshed for createGmailClient.');
+        const info = await authClient.getTokenInfo(tokenInfo.token);
+        if (info.email) {
+          console.log('Retrieved email from OAuth token:', info.email);
+          actualEmail = info.email;
+        }
       }
     } catch (err) {
-      console.error('Error getting token info:', err);
-      // Continue with authorization even if we can't get the email
+      console.error('Error ensuring OAuth2 access token or getting token info in createGmailClient:', err);
     }
   } else {
     throw new Error('Invalid credentials: Must provide either service account or OAuth credentials');
   }
 
-  // Authorize the client
-  await authClient.authorize();
-  
   // Create API clients
   const gmailClient = google.gmail({ version: 'v1', auth: authClient });
   const driveClient = google.drive({ version: 'v3', auth: authClient });
