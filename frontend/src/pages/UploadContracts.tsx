@@ -17,7 +17,8 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Storage as VaultIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Google as GoogleIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -1152,7 +1153,7 @@ const UploadContracts: React.FC = () => {
                 <Button
                   variant="contained"
                   color="primary"
-                  startIcon={<img src="/google-icon.svg" alt="Google" width="20" height="20" style={{ marginRight: '8px' }} />}
+                  startIcon={<GoogleIcon />}
                   onClick={initiateGoogleAuth}
                   disabled={loading}
                   fullWidth
@@ -1743,13 +1744,6 @@ const UploadContracts: React.FC = () => {
           </Alert>
         )}
 
-        {/* Display all success messages in main UI */}
-        {success && (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            {success}
-          </Alert>
-        )}
-
         <Box sx={{ width: '100%' }}>
           <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
             {steps.map((label) => (
@@ -1758,16 +1752,6 @@ const UploadContracts: React.FC = () => {
               </Step>
             ))}
           </Stepper>
-
-          {/* Always show connection status when on step 0 */}
-          {activeStep === 0 && googleConnected && (
-            <Alert severity="success" sx={{ mb: 3 }}>
-              <Typography>
-                <strong>Google account is connected!</strong>
-                {googleEmail ? ` Using email: ${googleEmail}` : ' Email information not available.'}
-              </Typography>
-            </Alert>
-          )}
 
           {loading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', my: 4 }}>
