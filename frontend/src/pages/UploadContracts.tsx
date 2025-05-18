@@ -1520,14 +1520,14 @@ const UploadContracts: React.FC = () => {
                   </Box>
                 </Box>
 
-                {vaultSearch.status === 'COMPLETED' && (
+                {/* {vaultSearch.status === 'COMPLETED' && (
                   <Box sx={{ mt: 2, textAlign: 'center' }}>
                     <Typography variant="body1" gutterBottom>
                       Search completed. Processing results...
                     </Typography>
                     <CircularProgress size={24} sx={{ mt: 1 }} />
                   </Box>
-                )}
+                )} */}
 
                 {vaultSearch.status === 'FAILED' && (
                   <Box sx={{ mt: 2 }}>
