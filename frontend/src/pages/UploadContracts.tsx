@@ -866,10 +866,15 @@ const UploadContracts: React.FC = () => {
       
       console.log("Search results response:", response.data);
       
-      // If there are no contracts, show a message and don't proceed
+      // If there are no contracts, show a message, stop polling, and DON'T proceed
       if (!response.data.contracts || response.data.contracts.length === 0) {
         setError('No contracts found. Try adjusting your search criteria.');
         setLoading(false);
+        
+        // Important: Set the search to COMPLETED state to ensure polling stops
+        setVaultSearch(prev => prev ? { ...prev, status: 'COMPLETED' } : null);
+        
+        // Don't continue with further processing
         return;
       }
       
