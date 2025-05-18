@@ -47,6 +47,7 @@ const oauth2Client = new google.auth.OAuth2(
 router.get('/auth-url', authenticate, async (req, res) => {
   try {
     const scopes = [
+      'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/drive.readonly',
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/calendar'
@@ -135,6 +136,7 @@ router.get('/oauth-callback', async (req, res) => {
       console.log('Retrieved email from token info:', userEmail);
     } catch (e) {
       console.error('Error getting token info:', e);
+      userEmail = null;
     }
     
     // Store tokens in the database
@@ -156,6 +158,7 @@ router.get('/oauth-callback', async (req, res) => {
       <script>
         // Function to redirect back to the application
         function returnToApp() {
+          console.log('Opener:', window.opener); // Added for debugging
           // Send detailed message to parent window
           if (window.opener) {
             try {
