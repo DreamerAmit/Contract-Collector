@@ -151,6 +151,8 @@ router.get('/oauth-callback', async (req, res) => {
       // Adjust other directives as needed for your page, but ensure script-src includes 'unsafe-inline'
     );
 
+    const authWindow = window.open(response.data.authUrl, '_blank', 'width=800,height=600');
+
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
@@ -200,14 +202,16 @@ router.get('/oauth-callback', async (req, res) => {
               document.getElementById('closeMessage').style.display = 'block';
             }
           } else {
-            // If no opener, add token to localStorage and explicitly redirect to upload contracts with parameters
-            const token = "${originalToken || ''}";
-            if (token) {
-              window.localStorage.setItem('token', token);
-            }
+            // Just close the window instead of redirecting
+            console.log("No opener found, closing window");
+            window.close();
             
-            // Always go to upload contracts with parameters
-            window.location.href = '/upload-contracts?google-connected=true&email=${encodeURIComponent(userEmail || '')}';
+            // If window doesn't close for some reason, show the manual close button
+            setTimeout(() => {
+              if (!window.closed) {
+                document.getElementById('closeMessage').style.display = 'block';
+              }
+            }, 1000);
           }
         }
         
