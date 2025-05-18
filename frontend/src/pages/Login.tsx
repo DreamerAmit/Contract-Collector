@@ -67,7 +67,7 @@ const Login: React.FC = () => {
             variant="subtitle1" 
             sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}
           >
-            Your Contract Management Solution
+           Track your renewals efficiently
           </Typography>
 
           <Avatar sx={{ bgcolor: 'primary.main' }}>
