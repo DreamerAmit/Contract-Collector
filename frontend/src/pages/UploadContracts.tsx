@@ -768,7 +768,18 @@ const UploadContracts: React.FC = () => {
   // Check the status of a search
   const checkSearchStatus = async (searchId: number) => {
     try {
-      console.log(`Checking status for search ${searchId}`);
+      console.log(`Checking status for search ${searchId}, current status: ${vaultSearch?.status}`);
+      
+      // If status is already COMPLETED with no contracts error, don't continue polling
+      if (vaultSearch?.status === 'COMPLETED' && error.includes('No contracts found')) {
+        console.log('Search already completed with no results - stopping polling');
+        if (statusPollingInterval) {
+          clearInterval(statusPollingInterval);
+          setStatusPollingInterval(null);
+        }
+        return;
+      }
+      
       const response = await axios.get(`/api/gmail/search/${searchId}`, {
         timeout: 10000 // 10 second timeout for status check
       });
@@ -848,9 +859,9 @@ const UploadContracts: React.FC = () => {
   // Process the results of a completed search
   const processSearchResults = async (searchId: number) => {
     try {
-      // First, explicitly clear any existing polling to prevent overlapping calls
+      // ALWAYS explicitly clear any existing polling at the start
       if (statusPollingInterval) {
-        console.log("Clearing status polling interval");
+        console.log("Clearing status polling interval at beginning of processSearchResults");
         clearInterval(statusPollingInterval);
         setStatusPollingInterval(null);
       }
@@ -867,16 +878,31 @@ const UploadContracts: React.FC = () => {
       
       console.log("Search results response:", response.data);
       
-      // If there are no contracts, show a message, stop polling, and DON'T proceed
+      // If there are no contracts, show message and ENSURE all processing stops
       if (!response.data.contracts || response.data.contracts.length === 0) {
+        console.log("No contracts found - stopping ALL background processes");
         setError('No contracts found. Try adjusting your search criteria.');
         setLoading(false);
         
-        // Important: Set the search to COMPLETED state to ensure polling stops
+        // Set search to COMPLETED
         setVaultSearch(prev => prev ? { ...prev, status: 'COMPLETED' } : null);
         
-        // Don't continue with further processing
-        return;
+        // Double-check that polling is really stopped
+        if (statusPollingInterval) {
+          clearInterval(statusPollingInterval);
+          setStatusPollingInterval(null);
+        }
+        
+        // Use setTimeout to verify polling stops (to catch any race conditions)
+        setTimeout(() => {
+          if (statusPollingInterval) {
+            console.log("Found lingering interval - stopping it");
+            clearInterval(statusPollingInterval);
+            setStatusPollingInterval(null);
+          }
+        }, 500);
+        
+        return; // Exit early
       }
       
       // Format contracts for selection
@@ -1727,6 +1753,22 @@ const UploadContracts: React.FC = () => {
       })
       .catch(err => console.error('Error in initial Google status check:', err));
   }, []); // Empty dependency array - only run once on mount
+
+  // Add this useEffect to ensure cleanup (near other useEffects)
+  useEffect(() => {
+    // Cleanup function that runs on unmount or when dependencies change
+    return () => {
+      console.log("Cleanup effect running - clearing any background processes");
+      // Clear any polling intervals
+      if (statusPollingInterval) {
+        console.log("Clearing polling interval in cleanup effect");
+        clearInterval(statusPollingInterval);
+      }
+      
+      // Clear any other timers or intervals that might be running
+      // This is a safety measure to prevent memory leaks and background processing
+    };
+  }, [statusPollingInterval, vaultSearch?.status]);
 
   return (
     <Container maxWidth="lg">
