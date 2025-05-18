@@ -1094,8 +1094,8 @@ const UploadContracts: React.FC = () => {
               Connect your Google account to search for contracts in Gmail and Google Drive.
             </Alert>
             
-            {/* KEEP ONLY ONE SUCCESS ALERT - remove the others */}
-            {googleConnected || justConnected ? (
+            {/* SINGLE SUCCESS ALERT - ONLY THIS ONE */}
+            {(googleConnected || justConnected) && (
               <Alert severity="success" sx={{ mb: 3 }}>
                 <Typography fontWeight="medium">
                   Google account is connected
@@ -1111,16 +1111,6 @@ const UploadContracts: React.FC = () => {
                   ) : (
                     <Box component="span" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
                       Email information not available
-                      <Button 
-                        size="small" 
-                        variant="text" 
-                        color="primary" 
-                        onClick={fetchGoogleEmail}
-                        disabled={emailLoading}
-                        sx={{ ml: 1 }}
-                      >
-                        Try Again
-                      </Button>
                     </Box>
                   )}
                   <Box sx={{ mt: 1 }}>
@@ -1137,7 +1127,7 @@ const UploadContracts: React.FC = () => {
                   </Box>
                 </Typography>
               </Alert>
-            ) : null}
+            )}
 
             <FormControl fullWidth sx={{ mb: 3 }}>
               <InputLabel id="auth-method-label">Authentication Method</InputLabel>
@@ -1759,29 +1749,6 @@ const UploadContracts: React.FC = () => {
             {success}
           </Alert>
         )}
-
-        {/* Debug info - will be visible to help troubleshoot */}
-        <Box sx={{ mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1, fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Typography variant="subtitle2">Debug Information:</Typography>
-          <Box>googleConnected: {googleConnected ? 'true' : 'false'}</Box>
-          <Box>justConnected: {justConnected ? 'true' : 'false'}</Box>
-          <Box>googleEmail: {googleEmail || 'not set'}</Box>
-          <Box>Step {activeStep}: {steps[activeStep]}</Box>
-          <Button size="small" variant="outlined" onClick={() => {
-            console.log("Manual state check triggered");
-            axios.get('/api/google/status')
-              .then(response => {
-                console.log('Manual status check:', response.data);
-                if (response.data.connected) {
-                  setGoogleConnected(true);
-                  console.log('Manually setting googleConnected = true');
-                  alert('Google is connected! Updating state...');
-                }
-              });
-          }}>
-            Force Check Connection
-          </Button>
-        </Box>
 
         <Box sx={{ width: '100%' }}>
           <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
