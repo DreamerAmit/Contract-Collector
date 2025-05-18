@@ -80,7 +80,7 @@ router.post('/search', authenticate, async (req, res) => {
           if (service === 'MAIL' || service === 'ALL') {
             // Search Gmail
             searchResults = await searchGmailForContracts(
-              clients,
+              clients.gmailClient,
               keywordQuery,
               startDate ? new Date(startDate) : null,
               endDate ? new Date(endDate) : null,
@@ -93,7 +93,7 @@ router.post('/search', authenticate, async (req, res) => {
           } else if (service === 'DRIVE') {
             // Search Drive
             searchResults = await searchDriveForContracts(
-              clients,
+              clients.driveClient,
               keywordQuery,
               startDate ? new Date(startDate) : null,
               endDate ? new Date(endDate) : null
