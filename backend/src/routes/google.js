@@ -146,26 +146,50 @@ router.get('/oauth-callback', async (req, res) => {
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
-      <p>You can now close this window and return to the application.</p>
+      <p>This window will close automatically in a few seconds...</p>
       <script>
         // Function to redirect back to the application
         function returnToApp() {
           // Send detailed message to parent window
           if (window.opener) {
-            // First post a message to the parent window
-            window.opener.postMessage({
-              type: 'google-auth-complete',
-              success: true,
-              email: "${userEmail || ''}",
-              userId: "${userId}",
-              redirectTo: 'upload-contracts',
-              originalToken: "${originalToken || ''}"
-            }, '*');
-            
-            console.log("Sending auth complete message to parent");
-            
-            // Close this window after a short delay
-            setTimeout(() => window.close(), 1500);
+            try {
+              // First post a message to the parent window
+              window.opener.postMessage({
+                type: 'google-auth-complete',
+                success: true,
+                email: "${userEmail || ''}",
+                userId: "${userId}",
+                redirectTo: 'upload-contracts',
+                originalToken: "${originalToken || ''}"
+              }, '*');
+              
+              console.log("Sending auth complete message to parent");
+              
+              // Try to close window immediately
+              window.close();
+              
+              // Set a backup timeout to force close the window after message is sent
+              setTimeout(() => {
+                console.log("Attempting to close window again");
+                window.close();
+              }, 500);
+              
+              // Set another backup timeout with a longer delay
+              setTimeout(() => {
+                console.log("Final attempt to close window");
+                window.close();
+              }, 1500);
+              
+              // If window is still open after 3 seconds, show manual close button
+              setTimeout(() => {
+                if (!window.closed) {
+                  document.getElementById('closeMessage').style.display = 'block';
+                }
+              }, 3000);
+            } catch (err) {
+              console.error("Error communicating with parent window:", err);
+              document.getElementById('closeMessage').style.display = 'block';
+            }
           } else {
             // If no opener, add token to localStorage and explicitly redirect to upload contracts with parameters
             const token = "${originalToken || ''}";
@@ -181,6 +205,10 @@ router.get('/oauth-callback', async (req, res) => {
         // Call return function immediately
         returnToApp();
       </script>
+      <div id="closeMessage" style="display: none; margin-top: 20px;">
+        <p>If this window doesn't close automatically, please click the button below:</p>
+        <button onclick="window.close()" style="padding: 10px 20px; background-color: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">Close Window</button>
+      </div>
     `);
   } catch (error) {
     console.error('OAuth callback error:', error);

@@ -315,64 +315,84 @@ const UploadContracts: React.FC = () => {
           setGoogleEmail(messageData.email);
         }
         
-        // Wait a moment for backend to process the OAuth callback
-        setTimeout(async () => {
-          try {
-            // Get the current token (restored from above)
-            const token = localStorage.getItem('token');
-            if (!token) {
-              console.error('No token available after OAuth completion');
-              return;
+        // Process the authentication immediately
+        try {
+          console.log('Processing authentication immediately');
+          
+          // Get the current token (restored from above)
+          const token = localStorage.getItem('token');
+          if (!token) {
+            console.error('No token available after OAuth completion');
+            return;
+          }
+          
+          // Check Google connection status with the token
+          const statusRes = await axios.get('/api/google/auth-status', {
+            headers: {
+              'Authorization': `Bearer ${token}`
             }
+          });
+          
+          if (statusRes.data.connected) {
+            console.log('Google connected via popup message');
+            setGoogleConnected(true);
+            setJustConnected(true);
             
-            // Check Google connection status with the token
-            const statusRes = await axios.get('/api/google/auth-status', {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
+            // Set success message with email if available
+            const email = messageData.email || statusRes.data.email;
+            const successMsg = `Google account connected successfully!${email ? ` (${email})` : ''}`;
+            console.log('Setting success message from popup:', successMsg);
+            setSuccess(successMsg);
             
-            if (statusRes.data.connected) {
-              console.log('Google connected via popup message');
-              setGoogleConnected(true);
-              setJustConnected(true);
+            // Removed alert to provide a better user experience
+            
+            if (!messageData.email && !googleEmail) {
+              await fetchGoogleEmail();
+            }
+          }
+        } catch (err) {
+          console.error('Error processing authentication immediately:', err);
+          
+          // Try again after a short delay as fallback
+          setTimeout(async () => {
+            try {
+              console.log('Trying authentication again after delay');
               
-              // Set success message with email if available
-              const email = messageData.email || statusRes.data.email;
-              const successMsg = `Google account connected successfully!${email ? ` (${email})` : ''}`;
-              console.log('Setting success message from popup:', successMsg);
-              setSuccess(successMsg);
-              
-              // Also display alert
-              alert(`Google account successfully connected!${email ? ` (${email})` : ''}`);
-              
-              if (!messageData.email && !googleEmail) {
-                await fetchGoogleEmail();
-              }
-              
-              // Ensure we stay on the upload-contracts page
-              if (window.location.pathname !== '/upload-contracts') {
-                console.log('Redirecting to upload-contracts page after OAuth completion');
-                window.location.href = '/upload-contracts';
+              const token = localStorage.getItem('token');
+              if (!token) {
+                console.error('No token available after OAuth completion');
                 return;
               }
               
-              // Just ensure we're at the right step
-              setActiveStep(0); // Reset to first step
+              const statusRes = await axios.get('/api/google/auth-status', {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              
+              if (statusRes.data.connected) {
+                console.log('Google connected via popup message (delayed)');
+                setGoogleConnected(true);
+                setJustConnected(true);
+                
+                // Set success message with email if available
+                const email = messageData.email || statusRes.data.email;
+                const successMsg = `Google account connected successfully!${email ? ` (${email})` : ''}`;
+                console.log('Setting success message from popup (delayed):', successMsg);
+                setSuccess(successMsg);
+                
+                if (!messageData.email && !googleEmail) {
+                  await fetchGoogleEmail();
+                }
+              }
+            } catch (delayedErr) {
+              console.error('Error in delayed authentication:', delayedErr);
+            } finally {
+              // Clean up the backup token
+              sessionStorage.removeItem('auth_token_backup');
             }
-          } catch (err) {
-            console.error('Error checking auth status after popup message:', err);
-            
-            // Fallback if anything fails - redirect to upload-contracts
-            if (window.location.pathname !== '/upload-contracts') {
-              console.log('Fallback redirection to upload-contracts after OAuth error');
-              window.location.href = '/upload-contracts';
-            }
-          } finally {
-            // Clean up the backup token
-            sessionStorage.removeItem('auth_token_backup');
-          }
-        }, 1000);
+          }, 1500);
+        }
       }
     };
 
@@ -477,6 +497,9 @@ const UploadContracts: React.FC = () => {
         setLoading(false);
         return;
       }
+      
+      // Focus the popup window
+      authWindow.focus();
       
       // Set up polling in case the message event doesn't work
       const checkAuthInterval = setInterval(async () => {
