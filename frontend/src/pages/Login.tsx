@@ -50,10 +50,30 @@ const Login: React.FC = () => {
             alignItems: 'center',
           }}
         >
-          <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
+          {/* ShowRenewals.com branding */}
+          <Typography 
+            component="h1" 
+            variant="h4" 
+            sx={{ 
+              color: 'primary.main', 
+              fontWeight: 'bold',
+              mb: 2 
+            }}
+          >
+            Show Renewals
+          </Typography>
+          
+          <Typography 
+            variant="subtitle1" 
+            sx={{ mb: 3, textAlign: 'center', color: 'text.secondary' }}
+          >
+            Your Contract Management Solution
+          </Typography>
+
+          <Avatar sx={{ bgcolor: 'primary.main' }}>
             <LockOutlinedIcon />
           </Avatar>
-          <Typography component="h1" variant="h5">
+          <Typography component="h2" variant="h5" sx={{ mt: 1 }}>
             Sign in
           </Typography>
           
@@ -63,7 +83,7 @@ const Login: React.FC = () => {
             </Alert>
           )}
           
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
             <TextField
               margin="normal"
               required
