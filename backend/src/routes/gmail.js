@@ -62,6 +62,14 @@ router.post('/search', authenticate, async (req, res) => {
         user.googleWorkspaceEmail // Will be used only for service accounts
       );
       
+      // Add this explicit check
+      if (!clients || !clients.gmailClient) {
+        throw new Error('Gmail client creation failed: invalid return structure');
+      }
+      
+      console.log('Clients object created successfully:', 
+                  Object.keys(clients).join(', ')); // Log keys without exposing sensitive data
+      
       // Start search in background to avoid timeouts
       // Return the search ID immediately
       res.json({
@@ -77,6 +85,11 @@ router.post('/search', authenticate, async (req, res) => {
       // Perform asynchronous processing
       (async () => {
         try {
+          // Explicitly verify clients again before search
+          if (!clients || !clients.gmailClient) {
+            throw new Error('Gmail client is undefined or invalid');
+          }
+          
           if (service === 'MAIL' || service === 'ALL') {
             // Search Gmail
             searchResults = await searchGmailForContracts(

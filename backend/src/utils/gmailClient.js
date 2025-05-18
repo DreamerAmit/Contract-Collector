@@ -14,99 +14,93 @@ async function createGmailClient(credentialsData, userEmail) {
   let authClient;
   let actualEmail = userEmail; // Default to provided email
   
-  // Check if this is a service account or OAuth credentials
-  if (credentialsData.type === 'service_account') {
-    // Service account authentication with domain-wide delegation
-    console.log('Creating Gmail client with service account');
-    
-    if (!userEmail) {
-      throw new Error('User email is required for service account authentication');
-    }
-    
-    authClient = new google.auth.JWT(
-      credentialsData.client_email,
-      null,
-      credentialsData.private_key,
-      [
-        'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/drive.readonly'
-      ],
-      userEmail
-    );
-    await authClient.authorize();
-  } else if (credentialsData.refresh_token) {
-    // OAuth client authentication for regular Gmail users
-    console.log('Creating Gmail client with OAuth credentials');
-    
-    // Create OAuth client
-    authClient = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    
-    // Set credentials
-    authClient.setCredentials({
-      refresh_token: credentialsData.refresh_token,
-      access_token: credentialsData.access_token,
-      expiry_date: credentialsData.expiry_date
-    });
-    
-    // Try to get the actual email from token info for OAuth
-    try {
-      const tokenInfo = await authClient.getAccessToken();
-      if (tokenInfo.token) {
-        console.log('OAuth2 access token is available/refreshed for createGmailClient.');
-        const info = await authClient.getTokenInfo(tokenInfo.token);
-        if (info.email) {
-          console.log('Retrieved email from OAuth token:', info.email);
-          actualEmail = info.email;
-        }
-      }
-    } catch (err) {
-      console.error('Error ensuring OAuth2 access token or getting token info in createGmailClient:', err);
-    }
-  } else {
-    throw new Error('Invalid credentials: Must provide either service account or OAuth credentials');
-  }
-
-  // Create API clients
-  const gmailClient = google.gmail({ version: 'v1', auth: authClient });
-  const driveClient = google.drive({ version: 'v3', auth: authClient });
-  
-  // For OAuth, if we couldn't get the email from token info, try to get it from profile
-  if (!actualEmail && credentialsData.refresh_token) {
-    try {
-      console.log('Getting email from Gmail profile...');
-      const profile = await gmailClient.users.getProfile({ userId: 'me' });
-      if (profile.data.emailAddress) {
-        console.log('Retrieved email from Gmail profile:', profile.data.emailAddress);
-        actualEmail = profile.data.emailAddress;
+  try {
+    // For service account
+    if (credentialsData.type === 'service_account') {
+      console.log('Creating Gmail client with service account');
+      authClient = new google.auth.JWT(
+        credentialsData.client_email,
+        null,
+        credentialsData.private_key,
+        [
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/drive.readonly'
+        ],
+        userEmail
+      );
+      // Only call authorize() for JWT clients
+      await authClient.authorize(); 
+    } 
+    // For OAuth2 client
+    else if (credentialsData.refresh_token) {
+      console.log('Creating Gmail client with OAuth credentials');
+      authClient = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_REDIRECT_URI
+      );
+      
+      authClient.setCredentials({
+        refresh_token: credentialsData.refresh_token,
+        access_token: credentialsData.access_token,
+        expiry_date: credentialsData.expiry_date
+      });
+      
+      // DO NOT call authClient.authorize() here for OAuth2
+      // Instead, refresh the token if needed:
+      try {
+        const tokenInfo = await authClient.getAccessToken();
+        console.log('OAuth2 access token refreshed if needed');
         
-        // If we found an email from the Gmail API, update the user's record
-        // to ensure consistency across the application
-        if (actualEmail) {
-          try {
-            // This requires passing the userId to this function, which might require API changes
-            // But at least log this for diagnosis
-            console.log('Found email from Gmail API:', actualEmail);
-            console.log('Consider updating the user record with this email');
-          } catch (updateErr) {
-            console.error('Unable to update user record with Gmail email:', updateErr);
+        if (tokenInfo && tokenInfo.token) {
+          const info = await authClient.getTokenInfo(tokenInfo.token);
+          if (info && info.email) {
+            console.log('Retrieved email from OAuth token:', info.email);
+            actualEmail = info.email;
           }
         }
+      } catch (tokenErr) {
+        console.error('Error refreshing token:', tokenErr);
+        // Continue anyway as googleapis will handle token refresh automatically
       }
-    } catch (err) {
-      console.error('Error getting Gmail profile:', err);
+    } else {
+      throw new Error('Invalid credentials: Must provide either service account or OAuth credentials');
     }
+
+    // Create API clients - THIS IS CRITICAL
+    if (!authClient) {
+      throw new Error('Auth client initialization failed');
+    }
+    
+    // Initialize the Gmail client
+    const gmailClient = google.gmail({ version: 'v1', auth: authClient });
+    
+    // Test that the client works by making a simple API call
+    try {
+      // Make a simple API call to verify the client works
+      await gmailClient.users.getProfile({ userId: 'me' });
+      console.log('Gmail client successfully initialized and tested');
+    } catch (testErr) {
+      console.error('Error testing Gmail client:', testErr);
+      throw new Error(`Gmail client failed initial test: ${testErr.message}`);
+    }
+    
+    // Initialize the Drive client
+    const driveClient = google.drive({ version: 'v3', auth: authClient });
+    
+    console.log('Returning clients object with gmailClient, driveClient, auth and email');
+    
+    // Return the complete clients object
+    return {
+      gmailClient,  // This property name must match what searchGmailForContracts expects
+      driveClient,
+      auth: authClient,
+      email: actualEmail
+    };
+  } catch (error) {
+    console.error('Error in createGmailClient:', error);
+    throw error; // Rethrow so the caller can handle it
   }
-  
-  return {
-    gmailClient,
-    driveClient,
-    auth: authClient,
-    email: actualEmail // Return the email address that is actually used
-  };
 }
 
 /**
@@ -159,7 +153,17 @@ function getAttachments(payload) {
  * @returns {Object} Search results
  */
 async function searchGmailForContracts(clients, query, startDate, endDate, options = {}) {
+  // Validate clients object
+  if (!clients || !clients.gmailClient) {
+    throw new Error('Invalid clients object: gmailClient is missing');
+  }
+  
   const { gmailClient } = clients;
+  
+  // Also validate gmailClient has the expected methods
+  if (!gmailClient.users || !gmailClient.users.messages) {
+    throw new Error('Invalid gmailClient: missing users.messages API');
+  }
   
   // Extract search keywords for matching later
   const searchKeywords = query.toLowerCase().split(' OR ').map(k => k.trim());
