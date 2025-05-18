@@ -6,8 +6,8 @@ const CalendarEvent = require('./calendarEvent');
 const VaultSearch = require('./vaultSearch');
 
 // Set up associations
-User.hasMany(Contract, { foreignKey: 'userId', as: 'contracts' });
-Contract.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(Contract, { foreignKey: 'userid', as: 'contracts' });
+Contract.belongsTo(User, { foreignKey: 'userid' });
 
 Contract.hasMany(CalendarEvent, { foreignKey: 'contractId', as: 'calendarEvents' });
 CalendarEvent.belongsTo(Contract, { foreignKey: 'contractId' });
