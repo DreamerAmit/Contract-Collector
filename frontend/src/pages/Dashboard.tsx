@@ -28,24 +28,21 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Here we would fetch actual data from the backend
-        // For now, let's simulate it
+        setLoading(true);
+        setError('');
         
-        setTimeout(() => {
-          setStats({
-            contractsCount: 0,
-            upcomingRenewals: 0
-          });
-          setLoading(false);
-        }, 1000);
-        
-        // Actual API call would look like this:
-        // const response = await axios.get('/api/dashboard/stats');
-        // setStats(response.data);
-        // setLoading(false);
+        // Make actual API call to get dashboard stats
+        const response = await axios.get('/api/dashboard/stats');
+        setStats(response.data);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data');
+        setError('Failed to load dashboard data. Please try refreshing the page.');
+        // Still set default values so UI isn't empty on error
+        setStats({
+          contractsCount: 0,
+          upcomingRenewals: 0
+        });
+      } finally {
         setLoading(false);
       }
     };

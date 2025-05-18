@@ -9,6 +9,7 @@ const calendarRoutes = require('./calendar');
 const googleRoutes = require('./google');
 const gmailRoutes = require('./gmail');
 const aiRoutes = require('./ai');
+const dashboardRoutes = require('./dashboard');
 
 // Register routes
 router.use('/auth', authRoutes);
@@ -18,5 +19,6 @@ router.use('/calendar', calendarRoutes);
 router.use('/google', googleRoutes);
 router.use('/gmail', gmailRoutes);
 router.use('/ai', aiRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 module.exports = router; 
