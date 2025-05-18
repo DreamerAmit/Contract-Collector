@@ -1094,53 +1094,11 @@ const UploadContracts: React.FC = () => {
               Connect your Google account to search for contracts in Gmail and Google Drive.
             </Alert>
             
-            {/* Only show ONE success alert in the form content */}
-            {googleConnected ? (
+            {/* KEEP ONLY ONE SUCCESS ALERT - remove the others */}
+            {googleConnected || justConnected ? (
               <Alert severity="success" sx={{ mb: 3 }}>
                 <Typography fontWeight="medium">
                   Google account is connected
-                  {emailLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5, gap: 1 }}>
-                      <CircularProgress size={16} />
-                      <span>Fetching email...</span>
-                    </Box>
-                  ) : googleEmail ? (
-                    <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
-                      <strong>Email:</strong> {googleEmail}
-                    </Box>
-                  ) : (
-                    <Box component="span" sx={{ display: 'block', mt: 0.5, color: 'text.secondary' }}>
-                      Email information not available
-                      <Button 
-                        size="small" 
-                        variant="text" 
-                        color="primary" 
-                        onClick={fetchGoogleEmail}
-                        disabled={emailLoading}
-                        sx={{ ml: 1 }}
-                      >
-                        Try Again
-                      </Button>
-                    </Box>
-                  )}
-                  <Box sx={{ mt: 1 }}>
-                    <Button 
-                      size="small" 
-                      variant="outlined" 
-                      color="error" 
-                      onClick={disconnectGoogle}
-                      disabled={loading}
-                      startIcon={<DeleteIcon fontSize="small" />}
-                    >
-                      Disconnect
-                    </Button>
-                  </Box>
-                </Typography>
-              </Alert>
-            ) : justConnected ? (
-              <Alert severity="success" sx={{ mt: 2, mb: 3 }}>
-                <Typography fontWeight="medium">
-                  Google account connected successfully!
                   {emailLoading ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5, gap: 1 }}>
                       <CircularProgress size={16} />
@@ -1260,18 +1218,6 @@ const UploadContracts: React.FC = () => {
                 </Typography>
               </Box>
             )}
-            
-            <Box sx={{ mt: 3 }}>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={testGoogleConnection}
-                disabled={loading}
-                startIcon={<RefreshIcon />}
-              >
-                Test Connection
-              </Button>
-            </Box>
           </Box>
         );
       
