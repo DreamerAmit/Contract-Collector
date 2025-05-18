@@ -143,6 +143,12 @@ router.get('/oauth-callback', async (req, res) => {
     await user.save();
     
     // Render success page with correct redirection
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
+      // Adjust other directives as needed for your page, but ensure script-src includes 'unsafe-inline'
+    );
+
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
