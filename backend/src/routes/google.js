@@ -151,8 +151,6 @@ router.get('/oauth-callback', async (req, res) => {
       // Adjust other directives as needed for your page, but ensure script-src includes 'unsafe-inline'
     );
 
-    const authWindow = window.open(response.data.authUrl, '_blank', 'width=800,height=600');
-
     res.send(`
       <h1>Google Authentication Successful</h1>
       <p>Your Google account has been connected successfully${userEmail ? ` (${userEmail})` : ''}.</p>
