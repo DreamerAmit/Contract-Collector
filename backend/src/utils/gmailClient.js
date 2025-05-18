@@ -145,20 +145,18 @@ function getAttachments(payload) {
 
 /**
  * Search Gmail for contracts
- * @param {Object} clients - Gmail and Drive API clients
+ * @param {Object} gmailClient - Gmail API client
  * @param {String} query - Search query
  * @param {Date} startDate - Start date
  * @param {Date} endDate - End date
  * @param {Object} options - Additional options
  * @returns {Object} Search results
  */
-async function searchGmailForContracts(clients, query, startDate, endDate, options = {}) {
-  // Validate clients object
-  if (!clients || !clients.gmailClient) {
-    throw new Error('Invalid clients object: gmailClient is missing');
+async function searchGmailForContracts(gmailClient, query, startDate, endDate, options = {}) {
+  // Validate gmailClient directly
+  if (!gmailClient) {
+    throw new Error('Invalid gmailClient: missing');
   }
-  
-  const { gmailClient } = clients;
   
   // Also validate gmailClient has the expected methods
   if (!gmailClient.users || !gmailClient.users.messages) {
