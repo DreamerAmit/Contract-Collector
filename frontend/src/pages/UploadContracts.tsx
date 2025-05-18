@@ -1053,6 +1053,28 @@ const UploadContracts: React.FC = () => {
     }
   };
 
+  // Rename the function for clarity but keep the same functionality
+  const editSearch = () => {
+    // Clear any existing polling interval
+    if (statusPollingInterval) {
+      console.log("Clearing polling interval for search edit");
+      clearInterval(statusPollingInterval);
+      setStatusPollingInterval(null);
+    }
+    
+    // Reset search state while preserving criteria
+    setVaultSearch(null);
+    setContracts([]);
+    
+    // Go back to search criteria step
+    setActiveStep(1);
+    
+    // Keep the existing search keywords but clear any error message
+    setError('');
+    setSuccess('');
+    setLoading(false);
+  };
+
   // Render step content
   const getStepContent = (stepIndex: number): React.ReactNode => {
     switch (stepIndex) {
@@ -1485,78 +1507,79 @@ const UploadContracts: React.FC = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Wait for Results
+              Searching Gmail and Drive
             </Typography>
+
+            {error && error.includes('No contracts found') && (
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  onClick={editSearch}
+                  startIcon={<ScanIcon />}
+                >
+                  Edit Search Criteria
+                </Button>
+              </Box>
+            )}
             
             {vaultSearch ? (
               <>
-                <Alert severity={vaultSearch.status === 'COMPLETED' ? 'success' : vaultSearch.status === 'FAILED' ? 'error' : 'info'}>
-                  {vaultSearch.status === 'COMPLETED' ? (
-                    <>
-                      <Typography variant="body1" paragraph>
-                        Gmail search completed successfully.
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Search ID: {vaultSearch.id}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Matter ID: {vaultSearch.matterId}
-                      </Typography>
-                    </>
-                  ) : vaultSearch.status === 'FAILED' ? (
-                    <>
-                      <Typography variant="body1" paragraph>
-                        Gmail search failed.
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {vaultSearch.description}
-                      </Typography>
-                    </>
-                  ) : (
-                    <>
-                      <Typography variant="body1" paragraph>
-                        Gmail search is in progress... (This may take several minutes)
-                      </Typography>
-                      <LinearProgress sx={{ mt: 1, mb: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Matter ID: {vaultSearch.matterId}
-                      </Typography>
-                    </>
-                  )}
-                </Alert>
-
-                {/* Show retry button if needed */}
-                {vaultSearch.status === 'COMPLETED' && (
-                  <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => {
-                        // Stop any ongoing polling first
-                        if (statusPollingInterval) {
-                          console.log('Stopping polling before manual processing');
-                          clearInterval(statusPollingInterval);
-                          setStatusPollingInterval(null);
-                        }
-                        processSearchResults(vaultSearch.id);
-                      }}
-                      disabled={loading}
-                      startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-                    >
-                      {loading ? 'Processing...' : 'Process Results'}
-                    </Button>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Click the button above to process the search results and find contracts.
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="body1" gutterBottom>
+                    Search ID: {vaultSearch.id}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                    <Typography variant="body2" sx={{ mr: 1 }}>
+                      Status: {vaultSearch.status}
                     </Typography>
+                    {vaultSearch.status === 'PROCESSING' && (
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
+                    )}
+                    {/* Edit Search button */}
+                    <Button 
+                      size="small"
+                      color="primary"
+                      onClick={editSearch}
+                      disabled={loading}
+                      sx={{ ml: 'auto' }}
+                    >
+                      Edit Search
+                    </Button>
+                  </Box>
+                </Box>
+
+                {vaultSearch.status === 'COMPLETED' && (
+                  <Box sx={{ mt: 2, textAlign: 'center' }}>
+                    <Typography variant="body1" gutterBottom>
+                      Search completed. Processing results...
+                    </Typography>
+                    <CircularProgress size={24} sx={{ mt: 1 }} />
                   </Box>
                 )}
 
-                {/* Show error and retry button if status check has failed too many times */}
-                {(vaultSearch.statusCheckFailCount || 0) > 5 && (
-                  <Alert severity="warning" sx={{ mt: 2 }}>
-                    Having trouble checking the status of your search. You can try refreshing the page or processing the results manually.
-                  </Alert>
+                {vaultSearch.status === 'FAILED' && (
+                  <Box sx={{ mt: 2 }}>
+                    <Alert severity="error">
+                      <Typography variant="body1" gutterBottom>
+                        Search failed. Please try again with different criteria.
+                      </Typography>
+                      <Button 
+                        variant="contained" 
+                        color="primary" 
+                        onClick={editSearch}
+                        sx={{ mt: 1 }}
+                      >
+                        Edit Search Criteria
+                      </Button>
+                    </Alert>
+                  </Box>
                 )}
+
+                {/* Rest of the existing UI */}
               </>
             ) : (
               <Alert severity="info">
@@ -1575,7 +1598,17 @@ const UploadContracts: React.FC = () => {
             </Typography>
             
             {contracts.length === 0 ? (
-              <Alert severity="info">No contracts found. Go back and adjust your search criteria.</Alert>
+              <Box sx={{ textAlign: 'center', mt: 3 }}>
+                <Alert severity="info" sx={{ mb: 2 }}>No contracts found. Go back and adjust your search criteria.</Alert>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  onClick={editSearch}
+                  startIcon={<ScanIcon />}
+                >
+                  Edit Search
+                </Button>
+              </Box>
             ) : (
               <>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -1593,8 +1626,16 @@ const UploadContracts: React.FC = () => {
                     <Button 
                       size="small" 
                       onClick={() => toggleSelectAll(false)}
+                      sx={{ mr: 1 }}
                     >
                       Deselect All
+                    </Button>
+                    <Button 
+                      size="small"
+                      color="primary"
+                      onClick={editSearch}
+                    >
+                      Edit Search
                     </Button>
                   </Box>
                 </Box>
