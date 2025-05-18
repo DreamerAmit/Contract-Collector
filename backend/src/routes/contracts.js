@@ -191,105 +191,37 @@ router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`DELETE CONTRACT: Starting deletion process for contract ID ${id}`);
-    console.log(`DELETE CONTRACT: User ID ${req.user.id} requested the deletion`);
     
-    // Get contract details
-    let contract;
-    try {
-      console.log(`DELETE CONTRACT: Attempting to find contract in database`);
-      contract = await Contract.findOne({
-        where: {
-          id: id,
-          userId: req.user.id
-        }
-      });
-      console.log(`DELETE CONTRACT: Contract found?`, !!contract);
-    } catch (findError) {
-      console.error(`DELETE CONTRACT: Error finding contract:`, findError);
-      throw findError;
-    }
+    // Use direct SQL query as a workaround for column case sensitivity issues
+    const query = `
+      DELETE FROM contracts 
+      WHERE id = :id AND userid = :userid
+      RETURNING id
+    `;
     
-    if (!contract) {
-      console.log(`DELETE CONTRACT: Contract ID ${id} not found for user ${req.user.id}`);
-      return res.status(404).json({
-        error: { message: 'Contract not found' }
-      });
-    }
-    
-    // Log contract details
-    console.log(`DELETE CONTRACT: Details of contract being deleted:`, {
-      id: contract.id,
-      name: contract.name,
-      filePath: contract.filePath,
-      userId: contract.userId,
-      hasFile: !!contract.filePath
+    const result = await sequelize.query(query, {
+      replacements: {
+        id: id,
+        userid: req.user.id
+      },
+      type: QueryTypes.DELETE
     });
     
-    // Check for related records (potential constraints)
-    try {
-      console.log(`DELETE CONTRACT: Checking for related CalendarEvents`);
-      const { CalendarEvent } = require('../models');
-      const relatedEvents = await CalendarEvent.findAll({
-        where: { contractId: id }
-      });
-      console.log(`DELETE CONTRACT: Found ${relatedEvents.length} related calendar events`);
-      
-      // You could delete them or handle accordingly
-      if (relatedEvents.length > 0) {
-        console.log(`DELETE CONTRACT: Will need to handle related calendar events`);
-      }
-    } catch (relatedError) {
-      console.error(`DELETE CONTRACT: Error checking related records:`, relatedError);
-      // Continue anyway
-    }
+    console.log(`DELETE CONTRACT: Result of deletion:`, result);
     
-    // Delete file
-    if (contract.filePath) {
-      try {
-        console.log(`DELETE CONTRACT: Checking if file exists at: ${contract.filePath}`);
-        const fileExists = fs.existsSync(contract.filePath);
-        console.log(`DELETE CONTRACT: File exists: ${fileExists}`);
-        
-        if (fileExists) {
-          console.log(`DELETE CONTRACT: Attempting to delete file`);
-          fs.unlinkSync(contract.filePath);
-          console.log(`DELETE CONTRACT: File deleted successfully`);
-        } else {
-          console.log(`DELETE CONTRACT: File not found, skipping file deletion`);
-        }
-      } catch (fileError) {
-        console.error(`DELETE CONTRACT: Error during file deletion:`, fileError);
-        console.log(`DELETE CONTRACT: Continuing with database record deletion despite file error`);
-      }
+    if (result && result[0] && result[0].length > 0) {
+      console.log(`DELETE CONTRACT: Successfully deleted contract ${id}`);
+      res.json({ message: 'Contract deleted successfully' });
     } else {
-      console.log(`DELETE CONTRACT: No file path, skipping file deletion`);
+      console.log(`DELETE CONTRACT: No contract found with ID ${id} for user ${req.user.id}`);
+      res.status(404).json({
+        error: { message: 'Contract not found or already deleted' }
+      });
     }
-    
-    // Delete from database
-    try {
-      console.log(`DELETE CONTRACT: Attempting to delete contract from database`);
-      await contract.destroy();
-      console.log(`DELETE CONTRACT: Contract successfully deleted from database`);
-    } catch (dbError) {
-      console.error(`DELETE CONTRACT: Error deleting from database:`, dbError);
-      throw dbError; // Re-throw to be caught by outer try/catch
-    }
-    
-    console.log(`DELETE CONTRACT: Deletion process completed successfully`);
-    res.json({ message: 'Contract deleted successfully' });
   } catch (error) {
-    console.error(`DELETE CONTRACT: FATAL ERROR in deletion process:`, error);
-    // Log additional error details that might be helpful
-    if (error.name) console.error(`DELETE CONTRACT: Error name: ${error.name}`);
-    if (error.code) console.error(`DELETE CONTRACT: Error code: ${error.code}`);
-    if (error.sql) console.error(`DELETE CONTRACT: SQL query that failed: ${error.sql}`);
-    
+    console.error(`DELETE CONTRACT: Error during deletion:`, error);
     res.status(500).json({
-      error: { 
-        message: 'Failed to delete contract', 
-        details: error.message,
-        type: error.name || 'Unknown'
-      }
+      error: { message: 'Failed to delete contract', details: error.message }
     });
   }
 });
