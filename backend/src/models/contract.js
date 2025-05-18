@@ -13,35 +13,35 @@ Contract.init({
     type: DataTypes.STRING,
     allowNull: false
   },
-  filePath: {
+  filepath: {
     type: DataTypes.STRING,
     allowNull: true
   },
-  contentType: {
+  contenttype: {
     type: DataTypes.STRING,
     allowNull: true
   },
-  sourceEmail: {
+  sourceemail: {
     type: DataTypes.STRING,
     allowNull: true
   },
-  sourceDriveId: {
+  sourcedriveid: {
     type: DataTypes.STRING,
     allowNull: true
   },
-  extractedText: {
+  extractedtext: {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  contractValue: {
+  contractvalue: {
     type: DataTypes.FLOAT,
     allowNull: true
   },
-  renewalDate: {
+  renewaldate: {
     type: DataTypes.DATE,
     allowNull: true
   },
-  userId: {
+  userid: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
@@ -49,18 +49,20 @@ Contract.init({
       key: 'id'
     }
   },
-  createdAt: {
+  createdat: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
   },
-  updatedAt: {
+  updatedat: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
   }
 }, {
   sequelize,
   modelName: 'Contract',
-  tableName: 'contracts'
+  tableName: 'contracts',
+  underscored: true,
+  timestamps: false
 });
 
 module.exports = Contract; 
